@@ -114,11 +114,11 @@ enabled = false
 [linter.rules.too-many-properties]
 enabled = false
 
-# The package depends on nothing beyond PHP; add a dependency here when the package requires one. Tests may use
-# anything.
+# The package depends on PHP and dirthara/messaging; add a dependency here when the package requires one. Tests may
+# use anything.
 [[guard.perimeter.rules]]
 namespace = "Dirthara\\Queue\\"
-permit = ["@native", "Dirthara\\Queue\\**"]
+permit = ["@native", "Dirthara\\Queue\\**", "Dirthara\\Messaging\\**"]
 
 [[guard.perimeter.rules]]
 namespace = "Dirthara\\Queue\\Tests\\"
@@ -127,6 +127,7 @@ permit = ["@all"]
 # CS-1 §15: classes are final.
 [[guard.structural.rules]]
 on = "Dirthara\\Queue\\**"
+not-on = "Dirthara\\Queue\\Tests\\Fixtures\\Inheritance\\**"
 target = "class"
 must-be-final = true
 reason = "Classes are final (CS-1 §15)."

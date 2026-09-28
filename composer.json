@@ -4,7 +4,8 @@
     "type": "library",
     "homepage": "https://dirthara.github.io/docs/",
     "require": {
-        "php": "^8.5"
+        "php": "^8.5",
+        "dirthara/messaging": "^0.1.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0"

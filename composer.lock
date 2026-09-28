@@ -4,8 +4,53 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "24df9cf3470f622c63720f2d800e2e96",
-    "packages": [],
+    "content-hash": "b0277c88202376142c205d91400de453",
+    "packages": [
+        {
+            "name": "dirthara/messaging",
+            "version": "0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/dirthara/messaging.git",
+                "reference": "054417f62a71866c37a886c487133c8cfc68afc4"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/dirthara/messaging/zipball/054417f62a71866c37a886c487133c8cfc68afc4",
+                "reference": "054417f62a71866c37a886c487133c8cfc68afc4",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.5"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^13.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Dirthara\\Messaging\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Dirthara"
+                }
+            ],
+            "description": "Transport-neutral, one-way message publishing for PHP and the Dirthara framework",
+            "homepage": "https://dirthara.github.io/docs/",
+            "support": {
+                "docs": "https://dirthara.github.io/docs/",
+                "issues": "https://github.com/dirthara/messaging/issues",
+                "source": "https://github.com/dirthara/messaging"
+            },
+            "time": "2026-09-28T16:29:29+00:00"
+        }
+    ],
     "packages-dev": [
         {
             "name": "myclabs/deep-copy",

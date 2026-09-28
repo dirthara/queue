@@ -7,8 +7,12 @@ description: Requirements and installation status for Dirthara Queue.
 
 ## Requirements
 
-PHP 8.5 or later within the PHP 8 series is required. The package has no runtime
-Composer dependencies beyond PHP.
+PHP 8.5 or later within the PHP 8 series is required. Composer installs its one
+runtime dependency:
+
+| Package | Provides |
+| --- | --- |
+| `dirthara/messaging` `^0.1.0` | The `MessagePublisher` contract that `QueuedMessagePublisher` implements. |
 
 ## Package installation
 
