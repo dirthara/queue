@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Queue;
+namespace Dirthara\Queue\Driver\Memory;
 
+use Dirthara\Queue\QueuedMessage;
 use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
 use Dirthara\Queue\Exception\DeliveryAlreadySettledException;

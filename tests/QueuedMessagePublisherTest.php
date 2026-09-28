@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Dirthara\Queue\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Dirthara\Queue\InMemoryQueue;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\QueuedMessagePublisher;
+use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerializer;
 
