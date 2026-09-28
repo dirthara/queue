@@ -1,0 +1,21 @@
+services:
+  mago:
+    image: ghcr.io/carthage-software/mago:1.47.3
+    profiles: ["tools"]
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    working_dir: /app
+    volumes:
+      - .:/app
+  php:
+    build:
+      context: .
+      dockerfile: Docker/Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.5}
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
+    working_dir: /app
+    init: true
+    command: ["sleep", "infinity"]
+    volumes:
+      - .:/app
