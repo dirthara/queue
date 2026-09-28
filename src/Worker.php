@@ -28,11 +28,10 @@ final readonly class Worker
             return false;
         }
 
-        $message = $this->serializer->deserialize($delivery->message);
-
-        $handler = $this->handlers->handlerFor($message);
-
         try {
+            $message = $this->serializer->deserialize($delivery->message);
+            $handler = $this->handlers->handlerFor($message);
+
             $handler($message);
         } catch (Throwable $exception) {
             $delivery->release();

@@ -31,6 +31,11 @@ final class QueueDriverRegistry implements QueueDriverRegistryContract, QueueFac
         $this->drivers[$name] = $driver;
     }
 
+    public function has(string $name): bool
+    {
+        return array_key_exists($name, $this->drivers);
+    }
+
     /**
      * @throws QueueDriverNotFoundException
      */

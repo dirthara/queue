@@ -29,6 +29,35 @@ final class QueueDriverRegistryTest extends TestCase
     }
 
     #[Test]
+    public function it_has_no_drivers_until_one_is_registered(): void
+    {
+        self::assertFalse(new QueueDriverRegistry()->has('memory'));
+    }
+
+    #[Test]
+    public function it_has_each_driver_registered_under_a_name(): void
+    {
+        $registry = new QueueDriverRegistry();
+        $registry->register('memory', new RecordingQueueDriver());
+        $registry->register('redis', new RecordingQueueDriver());
+
+        self::assertTrue($registry->has('memory'));
+        self::assertTrue($registry->has('redis'));
+        self::assertFalse($registry->has('database'));
+    }
+
+    #[Test]
+    public function it_matches_driver_names_exactly_when_asked_whether_it_has_one(): void
+    {
+        $registry = new QueueDriverRegistry();
+        $registry->register('memory', new RecordingQueueDriver());
+
+        self::assertFalse($registry->has('Memory'));
+        self::assertFalse($registry->has(' memory'));
+        self::assertFalse($registry->has(''));
+    }
+
+    #[Test]
     public function it_rejects_a_second_driver_under_the_same_name(): void
     {
         $registry = new QueueDriverRegistry();
@@ -42,6 +71,7 @@ final class QueueDriverRegistryTest extends TestCase
             self::assertSame(['driver' => 'memory'], $exception->context);
         }
 
+        self::assertTrue($registry->has('memory'));
         self::assertSame($first, $registry->driver('memory'));
     }
 

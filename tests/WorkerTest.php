@@ -12,6 +12,8 @@ use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\MessageHandlerRegistry;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
+use Dirthara\Queue\Serializer\NativeMessageSerializer;
+use Dirthara\Queue\Exception\MessageSerializationException;
 use Dirthara\Queue\Exception\MessageHandlerNotFoundException;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerializer;
 
@@ -70,15 +72,61 @@ final class WorkerTest extends TestCase
     }
 
     #[Test]
-    public function it_rethrows_a_message_type_without_a_handler(): void
+    public function it_releases_the_message_and_rethrows_when_no_handler_is_registered(): void
     {
         $queue = new InMemoryQueue();
-        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'));
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
+        $queue->enqueue($message);
 
         $worker = new Worker($queue, new SendWelcomeEmailSerializer(), new MessageHandlerRegistry());
 
-        $this->expectException(MessageHandlerNotFoundException::class);
+        try {
+            $worker->runOnce();
+            self::fail('A message without a handler was not rethrown.');
+        } catch (MessageHandlerNotFoundException) {
+            self::assertSame($message, $queue->reserve()?->message);
+        }
+    }
 
-        $worker->runOnce();
+    #[Test]
+    public function it_releases_the_message_and_rethrows_when_it_cannot_be_deserialized(): void
+    {
+        $queue = new InMemoryQueue();
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'not a serialized value');
+        $queue->enqueue($message);
+
+        $handled = false;
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use (&$handled): void {
+            $handled = true;
+        });
+
+        $worker = new Worker($queue, new NativeMessageSerializer(), $handlers);
+
+        try {
+            $worker->runOnce();
+            self::fail('A payload that cannot be deserialized was not rethrown.');
+        } catch (MessageSerializationException) {
+            self::assertFalse($handled);
+            self::assertSame($message, $queue->reserve()?->message);
+        }
+    }
+
+    #[Test]
+    public function it_hands_a_natively_serialized_message_to_its_handler(): void
+    {
+        $queue = new InMemoryQueue();
+        $serializer = new NativeMessageSerializer();
+        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+
+        $handled = [];
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use (&$handled): void {
+            $handled[] = $message;
+        });
+
+        self::assertTrue(new Worker($queue, $serializer, $handlers)->runOnce());
+        self::assertEquals([new SendWelcomeEmail('ada@example.com')], $handled);
+        self::assertNull($queue->reserve());
     }
 }

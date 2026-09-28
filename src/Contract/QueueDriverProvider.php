@@ -6,5 +6,7 @@ namespace Dirthara\Queue\Contract;
 
 interface QueueDriverProvider
 {
+    public function has(string $name): bool;
+
     public function driver(string $name): QueueDriver;
 }

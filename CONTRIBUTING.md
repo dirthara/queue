@@ -127,6 +127,18 @@ Then update the supported versions table below and in
 
 The initial `0.1` scaffold is unreleased.
 
+### Before the first release
+
+Resolve these before tagging `0.1.0`:
+
+- **`NativeMessageSerializer` trusts every payload.** It deserializes with
+  `allowed_classes => true`, so anyone who can write to the queue can make it
+  instantiate any loaded class and run that class's `__unserialize()`,
+  `__wakeup()`, and `__destruct()` before the type check rejects the payload.
+  Restricting `allowed_classes` to the declared message type closes this, but
+  stops objects nested inside a message from being restored. Decide which
+  trade-off the package makes. See [docs/serialization.md](docs/serialization.md).
+
 ## Before you open a pull request
 
 Run everything CI runs:
