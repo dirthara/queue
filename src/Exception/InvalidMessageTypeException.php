@@ -27,7 +27,7 @@ final class InvalidMessageTypeException extends InvalidArgumentException impleme
     {
         return new self(
             message: sprintf(
-                'Unable to register a handler for "%s": a message type has to be an existing class or enum.',
+                'Unable to register "%s": a message type has to be an existing class or enum.',
                 self::printable($message),
             ),
             context: ['message' => self::printable($message)],
@@ -38,7 +38,7 @@ final class InvalidMessageTypeException extends InvalidArgumentException impleme
     {
         return new self(
             message: sprintf(
-                'Unable to register a handler for "%s": it is an interface, and messages are handled by their exact class.',
+                'Unable to register "%s": it is an interface, and a registration applies to an exact message class.',
                 self::printable($message),
             ),
             context: ['message' => self::printable($message)],
@@ -49,7 +49,7 @@ final class InvalidMessageTypeException extends InvalidArgumentException impleme
     {
         return new self(
             message: sprintf(
-                'Unable to register a handler for "%s": it is an abstract class, and messages are handled by their exact class.',
+                'Unable to register "%s": it is an abstract class, and a registration applies to an exact message class.',
                 self::printable($message),
             ),
             context: ['message' => self::printable($message)],

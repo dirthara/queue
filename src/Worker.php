@@ -7,11 +7,11 @@ namespace Dirthara\Queue;
 use Throwable;
 use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
-use Dirthara\Queue\Contract\RetryPolicy;
-use Dirthara\Queue\Contract\BackoffPolicy;
 use Dirthara\Queue\ValueObject\WorkerResult;
 use Dirthara\Queue\Contract\MessageSerializer;
 use Dirthara\Queue\Contract\MessageHandlerProvider;
+use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
+use Dirthara\Queue\Contract\MessageExecutionPolicyProvider;
 
 final readonly class Worker
 {
@@ -19,8 +19,7 @@ final readonly class Worker
         private Queue $queue,
         private MessageSerializer $serializer,
         private MessageHandlerProvider $handlers,
-        private RetryPolicy $retryPolicy,
-        private BackoffPolicy $backoffPolicy,
+        private MessageExecutionPolicyProvider $executionPolicies,
     ) {}
 
     /**
@@ -34,13 +33,16 @@ final readonly class Worker
             return WorkerResult::idle();
         }
 
+        $policy = $this->executionPolicies->default;
+
         try {
             $message = $this->serializer->deserialize($delivery->message);
+            $policy = $this->executionPolicies->policyFor($message);
             $handler = $this->handlers->handlerFor($message);
 
             $handler($message);
         } catch (Throwable $failure) {
-            $this->settleFailure($delivery, $failure);
+            $this->settleFailure($delivery, $failure, $policy);
 
             return WorkerResult::failed($failure);
         }
@@ -50,14 +52,14 @@ final readonly class Worker
         return WorkerResult::handled();
     }
 
-    private function settleFailure(Delivery $delivery, Throwable $failure): void
+    private function settleFailure(Delivery $delivery, Throwable $failure, MessageExecutionPolicy $policy): void
     {
-        if (!$this->retryPolicy->shouldRetry($delivery, $failure)) {
+        if (!$policy->retry->shouldRetry($delivery, $failure)) {
             $delivery->fail($failure);
 
             return;
         }
 
-        $delivery->release($this->backoffPolicy->delay($delivery, $failure));
+        $delivery->release($policy->backoff->delay($delivery, $failure));
     }
 }

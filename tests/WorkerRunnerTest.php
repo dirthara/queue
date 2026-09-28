@@ -20,7 +20,9 @@ use Dirthara\Queue\Backoff\NoBackoffPolicy;
 use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Retry\UnlimitedRetryPolicy;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
+use Dirthara\Queue\MessageExecutionPolicyRegistry;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
+use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
 use Dirthara\Queue\Exception\WorkerAlreadyRunningException;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerializer;
 
@@ -269,6 +271,11 @@ final class WorkerRunnerTest extends TestCase
         MessageHandlerRegistry $handlers,
         RetryPolicy $retryPolicy = new UnlimitedRetryPolicy(),
     ): Worker {
-        return new Worker($queue, new SendWelcomeEmailSerializer(), $handlers, $retryPolicy, new NoBackoffPolicy());
+        return new Worker(
+            $queue,
+            new SendWelcomeEmailSerializer(),
+            $handlers,
+            new MessageExecutionPolicyRegistry(new MessageExecutionPolicy($retryPolicy, new NoBackoffPolicy())),
+        );
     }
 }

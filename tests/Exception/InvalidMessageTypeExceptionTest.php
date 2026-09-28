@@ -52,7 +52,7 @@ final class InvalidMessageTypeExceptionTest extends TestCase
         $exception = InvalidMessageTypeException::notAnObjectType("class@anonymous\0/app/src/Job.php:3$0");
 
         self::assertSame(
-            'Unable to register a handler for "class@anonymous\\000/app/src/Job.php:3$0": a message type has to be an existing class or enum.',
+            'Unable to register "class@anonymous\\000/app/src/Job.php:3$0": a message type has to be an existing class or enum.',
             $exception->getMessage(),
         );
         self::assertSame(['message' => 'class@anonymous\\000/app/src/Job.php:3$0'], $exception->context);
@@ -64,7 +64,7 @@ final class InvalidMessageTypeExceptionTest extends TestCase
         $exception = InvalidMessageTypeException::interfaceType("class@anonymous\0/app/src/Job.php:3$0");
 
         self::assertSame(
-            'Unable to register a handler for "class@anonymous\\000/app/src/Job.php:3$0": it is an interface, and messages are handled by their exact class.',
+            'Unable to register "class@anonymous\\000/app/src/Job.php:3$0": it is an interface, and a registration applies to an exact message class.',
             $exception->getMessage(),
         );
         self::assertSame(['message' => 'class@anonymous\\000/app/src/Job.php:3$0'], $exception->context);
@@ -76,7 +76,7 @@ final class InvalidMessageTypeExceptionTest extends TestCase
         $exception = InvalidMessageTypeException::abstractClass("class@anonymous\0/app/src/Job.php:3$0");
 
         self::assertSame(
-            'Unable to register a handler for "class@anonymous\\000/app/src/Job.php:3$0": it is an abstract class, and messages are handled by their exact class.',
+            'Unable to register "class@anonymous\\000/app/src/Job.php:3$0": it is an abstract class, and a registration applies to an exact message class.',
             $exception->getMessage(),
         );
         self::assertSame(['message' => 'class@anonymous\\000/app/src/Job.php:3$0'], $exception->context);
