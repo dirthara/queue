@@ -6,11 +6,11 @@ namespace Dirthara\Queue\Tests;
 
 use RuntimeException;
 use PHPUnit\Framework\TestCase;
-use Dirthara\Queue\QueuedMessage;
 use Dirthara\Queue\Contract\Delivery;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\Tests\Fixtures\TestClock;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\Exception\DeliveryAlreadySettledException;

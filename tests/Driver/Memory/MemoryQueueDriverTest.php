@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Dirthara\Queue\Tests\Driver\Memory;
 
 use PHPUnit\Framework\TestCase;
-use Dirthara\Queue\QueuedMessage;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\Config\QueueConfiguration;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\Driver\Memory\MemoryQueueDriver;
 

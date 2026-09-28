@@ -6,8 +6,8 @@ namespace Dirthara\Queue\Tests\Driver\Memory;
 
 use RuntimeException;
 use PHPUnit\Framework\TestCase;
-use Dirthara\Queue\QueuedMessage;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Driver\Memory\FailedMessage;
 
 final class FailedMessageTest extends TestCase

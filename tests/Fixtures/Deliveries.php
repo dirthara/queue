@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Dirthara\Queue\Tests\Fixtures;
 
 use LogicException;
-use Dirthara\Queue\QueuedMessage;
 use Dirthara\Queue\Contract\Delivery;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 
 final class Deliveries

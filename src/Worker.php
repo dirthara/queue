@@ -9,6 +9,7 @@ use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
 use Dirthara\Queue\Contract\RetryPolicy;
 use Dirthara\Queue\Contract\BackoffPolicy;
+use Dirthara\Queue\ValueObject\WorkerResult;
 use Dirthara\Queue\Contract\MessageSerializer;
 use Dirthara\Queue\Contract\MessageHandlerProvider;
 
@@ -25,12 +26,12 @@ final readonly class Worker
     /**
      * @throws Throwable
      */
-    public function runOnce(): bool
+    public function runOnce(): WorkerResult
     {
         $delivery = $this->queue->reserve();
 
         if ($delivery === null) {
-            return false;
+            return WorkerResult::idle();
         }
 
         try {
@@ -38,15 +39,15 @@ final readonly class Worker
             $handler = $this->handlers->handlerFor($message);
 
             $handler($message);
-        } catch (Throwable $exception) {
-            $this->settleFailure($delivery, $exception);
+        } catch (Throwable $failure) {
+            $this->settleFailure($delivery, $failure);
 
-            throw $exception;
+            return WorkerResult::failed($failure);
         }
 
         $delivery->acknowledge();
 
-        return true;
+        return WorkerResult::handled();
     }
 
     private function settleFailure(Delivery $delivery, Throwable $failure): void

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Queue;
+namespace Dirthara\Queue\ValueObject;
 
 final readonly class QueuedMessage
 {

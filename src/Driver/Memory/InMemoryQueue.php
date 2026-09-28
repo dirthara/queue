@@ -7,10 +7,10 @@ namespace Dirthara\Queue\Driver\Memory;
 use Closure;
 use Throwable;
 use DateTimeImmutable;
-use Dirthara\Queue\QueuedMessage;
 use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
 use Dirthara\Queue\ValueObject\Duration;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Exception\DeliveryAlreadySettledException;
 
 use function intdiv;

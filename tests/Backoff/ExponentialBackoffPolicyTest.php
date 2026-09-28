@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace Dirthara\Queue\Tests\Backoff;
 
+use Throwable;
 use RuntimeException;
 use PHPUnit\Framework\TestCase;
-use Dirthara\Queue\QueuedMessage;
 use Dirthara\Queue\Contract\Delivery;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\Tests\Fixtures\Deliveries;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Queue\Backoff\ExponentialBackoffPolicy;
 
 use const PHP_INT_MAX;
-
-use Throwable;
 
 final class ExponentialBackoffPolicyTest extends TestCase
 {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Dirthara\Queue\Tests\Fixtures;
 
 use RuntimeException;
-use Dirthara\Queue\QueuedMessage;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Contract\MessageSerializer;
 
 final class SendWelcomeEmailSerializer implements MessageSerializer

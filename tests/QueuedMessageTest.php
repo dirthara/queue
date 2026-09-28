@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Dirthara\Queue\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Dirthara\Queue\QueuedMessage;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 
 final class QueuedMessageTest extends TestCase
 {

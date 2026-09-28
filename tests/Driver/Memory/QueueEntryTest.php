@@ -6,9 +6,9 @@ namespace Dirthara\Queue\Tests\Driver\Memory;
 
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
-use Dirthara\Queue\QueuedMessage;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\Driver\Memory\QueueEntry;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 
 final class QueueEntryTest extends TestCase
 {

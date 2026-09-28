@@ -12,6 +12,9 @@ use const PHP_INT_MAX;
 
 final readonly class Duration
 {
+    /**
+     * @param non-negative-int $milliseconds
+     */
     private function __construct(
         public int $milliseconds,
     ) {}
@@ -49,6 +52,10 @@ final readonly class Duration
     }
 
     /**
+     * @param positive-int $millisecondsPerUnit
+     *
+     * @return non-negative-int
+     *
      * @throws InvalidDurationException
      */
     private static function scale(int $amount, int $millisecondsPerUnit, string $unit): int

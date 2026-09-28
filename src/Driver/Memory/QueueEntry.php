@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Dirthara\Queue\Driver\Memory;
 
 use DateTimeImmutable;
-use Dirthara\Queue\QueuedMessage;
+use Dirthara\Queue\ValueObject\QueuedMessage;
 
 /**
  * @internal
