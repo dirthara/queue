@@ -94,7 +94,7 @@ git push origin 0.1.3
 
 A release is gated on a perfect [Plumb](https://plumbphp.dev) score. Every
 package scores 100 before it is tagged; the packaging rules that get it there
-are in [agents/packaging.md](agents/packaging.md).
+are in [CS-8: Packaging](https://github.com/dirthara/coding-standards/blob/main/docs/coding-standards/cs-8-packaging.md).
 
 ```sh
 curl -X POST https://plumbphp.dev/api/v1/packages/dirthara/queue
@@ -125,20 +125,6 @@ Then update the supported versions table below and in
 | --- | --- | --- |
 | `0.1` | 8.5 | Active |
 
-The initial `0.1` scaffold is unreleased.
-
-### Before the first release
-
-Resolve these before tagging `0.1.0`:
-
-- **`NativeMessageSerializer` trusts every payload.** It deserializes with
-  `allowed_classes => true`, so anyone who can write to the queue can make it
-  instantiate any loaded class and run that class's `__unserialize()`,
-  `__wakeup()`, and `__destruct()` before the type check rejects the payload.
-  Restricting `allowed_classes` to the declared message type closes this, but
-  stops objects nested inside a message from being restored. Decide which
-  trade-off the package makes. See [docs/serialization.md](docs/serialization.md).
-
 ## Before you open a pull request
 
 Run everything CI runs:
@@ -160,7 +146,7 @@ Your pull request needs:
 
 - **Documentation that matches.** Behaviour that the [docs](docs) describe is
   updated in the same pull request. See the conventions in
-  [agents/documentation.md](agents/documentation.md).
+  [CS-6: Documentation](https://github.com/dirthara/coding-standards/blob/main/docs/coding-standards/cs-6-documentation.md).
 
 ## Maintainers: protecting a release branch
 

@@ -4,7 +4,7 @@
 
 | Version | Status |
 | --- | --- |
-| 0.1.x | Active development; unreleased |
+| 0.1.x | Active |
 | Older | Unsupported |
 
 While the package is pre-1.0, only the latest release line receives fixes.
@@ -22,10 +22,34 @@ advisory crediting the reporter unless they prefer otherwise.
 
 ## Scope
 
-This repository currently contains package infrastructure and no public
-implementation. Report security issues in this package's code or development
-configuration. As the package's behaviour is introduced, update this policy
-with its security boundaries.
+The package queues serialized messages, delivers them to a worker, and
+settles each delivery by the message's execution policy. In scope are flaws in
+that behaviour and in the package's development configuration, such as:
+
+- a message delivered to a handler registered for another type, or a
+  registration silently replacing an earlier one;
+- a delivery acknowledged, released, or failed more than once, a message lost
+  instead of retried or failed, or a failed message retried or forgotten by the
+  wrong id;
+- a payload restored into an object of another class than the type recorded
+  with it;
+- an exception message or context disclosing a message payload or a
+  configuration value, or letting a message type or option name forge a log
+  line.
+
+Out of scope:
+
+- **Forged payloads with `NativeMessageSerializer`.** The serializer restores
+  any class a payload names, by design, and is only safe on a queue that
+  nothing untrusted can write to. Object injection through a payload written by
+  someone with write access to the queue is not a vulnerability in this
+  package; see
+  [serialization](https://github.com/dirthara/queue/blob/0.1/docs/serialization.md).
+- **Data kept with failed messages.** A failed message keeps its payload and
+  the failure's exception message as they are; protecting that data is the
+  application's responsibility.
+- **Transports.** The package ships only an in-memory queue. Security issues in
+  other queue drivers belong to the package that provides them.
 
 Bugs in PHP or third-party dependencies should also be reported upstream.
 Application code and the sensitivity of data an application chooses to store

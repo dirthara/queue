@@ -4,8 +4,13 @@
 
 # Dirthara Queue
 
-Queues for the Dirthara framework. This repository is the initial package scaffold; no public API or release is available yet. Usage 
-documentation lives in [`docs`](docs/intro.md) and is published on the Dirthara documentation site at 
+Transport-neutral message queues and workers for the Dirthara framework: a publisher that queues plain PHP messages, now
+or after a delay; a worker that hands each message to the handler registered for its exact class and retries, delays,
+or fails it by a per-message execution policy; a runner with observable results and lifecycle limits; failed-message
+management; and an in-memory queue.
+
+Usage guides and API documentation live in [`docs`](docs/intro.md), starting with
+[getting started](docs/getting-started.md). They are published on the Dirthara documentation site at
 <https://dirthara.github.io/docs/>, which documents every package in the framework.
 
 ## Installation
@@ -47,9 +52,6 @@ docker compose exec php composer test
 ```
 
 Tests belong in `tests`, under `Dirthara\Queue\Tests`. Source belongs in `src`, under `Dirthara\Queue`.
-
-The package starts with its exception interface, `Dirthara\Queue\Exception\QueueException`, and the 
-`HasExceptionContext` trait every exception uses to carry its context, both covered by tests.
 
 ## Code quality
 

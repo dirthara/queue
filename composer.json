@@ -1,7 +1,14 @@
 {
     "name": "dirthara/queue",
-    "description": "Queues for the Dirthara framework",
+    "description": "Transport-neutral message queues and workers for PHP and the Dirthara framework",
     "type": "library",
+    "keywords": [
+        "queue",
+        "worker",
+        "messaging",
+        "retry",
+        "backoff"
+    ],
     "homepage": "https://dirthara.github.io/docs/",
     "require": {
         "php": "^8.5",

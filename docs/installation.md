@@ -2,7 +2,7 @@
 id: installation
 title: Installation
 sidebar_position: 2
-description: Requirements and installation status for Dirthara Queue.
+description: Requirements and installation of Dirthara Queue.
 ---
 
 ## Requirements
@@ -16,16 +16,11 @@ runtime dependency:
 
 ## Package installation
 
-Once published, install the package using Composer:
+Install the package with Composer:
 
 ```sh
 composer require dirthara/queue
 ```
-
-:::caution
-There is no published release yet. The command above describes the intended
-installation after publication.
-:::
 
 For development, follow the Docker and Composer setup in the repository's
 [README](https://github.com/dirthara/queue#readme). Development tooling

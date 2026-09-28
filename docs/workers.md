@@ -1,7 +1,7 @@
 ---
 id: workers
 title: Workers
-sidebar_position: 5
+sidebar_position: 7
 description: Running a worker continuously, observing the result of every delivery, and limiting how long a run lasts.
 ---
 

@@ -1,7 +1,7 @@
 ---
 id: execution-policies
 title: Execution policies
-sidebar_position: 4
+sidebar_position: 6
 description: How a worker decides to retry, delay, or fail a message, per exact message type.
 ---
 
@@ -26,6 +26,29 @@ A `MessageExecutionPolicy` combines the two decisions a worker makes after a fai
 - its `BackoffPolicy` decides how long a retried message waits before it is delivered again.
 
 A successfully handled message is acknowledged without consulting either.
+
+### Retry policies
+
+| Policy | Retries a failed message |
+| --- | --- |
+| `AttemptsRetryPolicy(int $maxAttempts = 3)` | Until it has been attempted `$maxAttempts` times in total, then fails it. At least 1; `1` never retries. |
+| `NeverRetryPolicy` | Never: the first failure fails it for good. |
+| `UnlimitedRetryPolicy` | Always, for as long as it keeps failing. |
+
+An attempt is counted from 1, so `AttemptsRetryPolicy(3)` means the first attempt and two retries. A retry policy
+receives the `Delivery` and the failure, so a custom `RetryPolicy` can also decide by the kind of failure.
+
+### Backoff policies
+
+| Policy | Delays a retry by |
+| --- | --- |
+| `NoBackoffPolicy` | Nothing: the message is available again straight away. |
+| `FixedBackoffPolicy(Duration $duration)` | The same duration every time. |
+| `ExponentialBackoffPolicy(Duration $initialDuration, Duration $maximumDuration)` | `$initialDuration` after the first attempt, doubling after each attempt, never more than `$maximumDuration`. |
+
+With an initial duration of 1 second and a maximum of 1 minute, `ExponentialBackoffPolicy` delays the retries after
+attempts 1, 2, 3, and 4 by 1, 2, 4, and 8 seconds, and from attempt 7 on by 1 minute. See
+[publishing](publishing.md#durations) for creating a `Duration`.
 
 ## Default and per-message policies
 
