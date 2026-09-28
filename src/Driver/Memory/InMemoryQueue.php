@@ -9,15 +9,22 @@ use Throwable;
 use DateTimeImmutable;
 use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
+use Dirthara\Queue\ValueObject\Failure;
 use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\ValueObject\QueuedMessage;
+use Dirthara\Queue\Contract\FailedMessageRepository;
+use Dirthara\Queue\Exception\FailedMessageNotFoundException;
 use Dirthara\Queue\Exception\DeliveryAlreadySettledException;
 
 use function intdiv;
+use function bin2hex;
 use function sprintf;
 use function array_splice;
+use function array_values;
+use function random_bytes;
+use function array_key_exists;
 
-final class InMemoryQueue implements Queue
+final class InMemoryQueue implements Queue, FailedMessageRepository
 {
     /**
      * @var list<QueueEntry>
@@ -25,9 +32,9 @@ final class InMemoryQueue implements Queue
     private array $pending = [];
 
     /**
-     * @var list<FailedMessage>
+     * @var array<string, FailedMessage>
      */
-    public private(set) array $failed = [];
+    private array $failed = [];
 
     /**
      * @var Closure(): DateTimeImmutable
@@ -60,7 +67,14 @@ final class InMemoryQueue implements Queue
         };
 
         $fail = function (QueueEntry $entry, ?Throwable $failure): void {
-            $this->failed[] = new FailedMessage($entry->message, $failure);
+            $id = bin2hex(random_bytes(16));
+
+            $this->failed[$id] = new FailedMessage(
+                $id,
+                $entry->message,
+                $entry->attempt,
+                $failure === null ? null : Failure::fromThrowable($failure),
+            );
         };
 
         return new class($entry, $release, $fail) implements Delivery {
@@ -140,6 +154,43 @@ final class InMemoryQueue implements Queue
                 }
             }
         };
+    }
+
+    /**
+     * @return list<FailedMessage>
+     */
+    public function failed(): iterable
+    {
+        return array_values($this->failed);
+    }
+
+    public function findFailed(string $id): ?FailedMessage
+    {
+        return $this->failed[$id] ?? null;
+    }
+
+    /**
+     * @throws FailedMessageNotFoundException
+     */
+    public function retry(string $id): void
+    {
+        $failed = $this->failed[$id] ?? throw FailedMessageNotFoundException::forId($id);
+
+        unset($this->failed[$id]);
+
+        $this->pending[] = new QueueEntry($failed->message);
+    }
+
+    /**
+     * @throws FailedMessageNotFoundException
+     */
+    public function forget(string $id): void
+    {
+        if (!array_key_exists($id, $this->failed)) {
+            throw FailedMessageNotFoundException::forId($id);
+        }
+
+        unset($this->failed[$id]);
     }
 
     private function takeAvailable(DateTimeImmutable $now): ?QueueEntry

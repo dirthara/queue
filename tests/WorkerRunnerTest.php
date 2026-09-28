@@ -112,7 +112,7 @@ final class WorkerRunnerTest extends TestCase
         $runner->run();
 
         self::assertSame(['failed', 'handled', 'slept'], $events);
-        self::assertCount(1, $queue->failed);
+        self::assertCount(1, $queue->failed());
     }
 
     #[Test]

@@ -8,11 +8,14 @@ use RuntimeException;
 use PHPUnit\Framework\TestCase;
 use Dirthara\Queue\Contract\Delivery;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Queue\ValueObject\Failure;
 use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\Tests\Fixtures\TestClock;
 use Dirthara\Queue\ValueObject\QueuedMessage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
+use Dirthara\Queue\Contract\FailedMessageRepository;
+use Dirthara\Queue\Exception\FailedMessageNotFoundException;
 use Dirthara\Queue\Exception\DeliveryAlreadySettledException;
 
 final class InMemoryQueueTest extends TestCase
@@ -213,7 +216,7 @@ final class InMemoryQueueTest extends TestCase
         $queue->reserve()?->release();
         $queue->reserve()?->acknowledge();
 
-        self::assertSame([], $queue->failed);
+        self::assertSame([], $queue->failed());
     }
 
     #[Test]
@@ -227,9 +230,9 @@ final class InMemoryQueueTest extends TestCase
 
         $queue->reserve()?->fail($failure);
 
-        self::assertCount(1, $queue->failed);
-        self::assertSame($message, $queue->failed[0]->message);
-        self::assertSame($failure, $queue->failed[0]->failure);
+        self::assertCount(1, $queue->failed());
+        self::assertSame($message, $queue->failed()[0]->message);
+        self::assertEquals(Failure::fromThrowable($failure), $queue->failed()[0]->failure);
         self::assertSame('waiting', $queue->reserve()?->message->type);
         self::assertNull($queue->reserve());
     }
@@ -243,9 +246,9 @@ final class InMemoryQueueTest extends TestCase
 
         $queue->reserve()?->fail();
 
-        self::assertCount(1, $queue->failed);
-        self::assertSame($message, $queue->failed[0]->message);
-        self::assertNull($queue->failed[0]->failure);
+        self::assertCount(1, $queue->failed());
+        self::assertSame($message, $queue->failed()[0]->message);
+        self::assertNull($queue->failed()[0]->failure);
         self::assertNull($queue->reserve());
     }
 
@@ -261,7 +264,7 @@ final class InMemoryQueueTest extends TestCase
         $second?->fail();
         $first?->fail();
 
-        self::assertSame(['second', 'first'], [$queue->failed[0]->message->type, $queue->failed[1]->message->type]);
+        self::assertSame(['second', 'first'], [$queue->failed()[0]->message->type, $queue->failed()[1]->message->type]);
     }
 
     #[Test]
@@ -277,7 +280,7 @@ final class InMemoryQueueTest extends TestCase
             $delivery->fail(new RuntimeException('The handler failed.'));
             self::fail('An acknowledged delivery was failed.');
         } catch (DeliveryAlreadySettledException) {
-            self::assertSame([], $queue->failed);
+            self::assertSame([], $queue->failed());
         }
     }
 
@@ -506,5 +509,187 @@ final class InMemoryQueueTest extends TestCase
 
         $clock->advance('+5 seconds');
         self::assertSame(2, $queue->reserve()?->attempt);
+    }
+
+    #[Test]
+    public function it_is_a_failed_message_repository(): void
+    {
+        self::assertInstanceOf(FailedMessageRepository::class, new InMemoryQueue());
+    }
+
+    #[Test]
+    public function it_records_the_attempt_and_a_summary_of_the_failure(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $queue->reserve()?->release();
+
+        $queue->reserve()?->fail(new RuntimeException('The mail server is unavailable.', 503));
+
+        $failed = $queue->failed()[0];
+
+        self::assertSame(2, $failed->attempt);
+        self::assertEquals(
+            new Failure(RuntimeException::class, 'The mail server is unavailable.', 503),
+            $failed->failure,
+        );
+    }
+
+    #[Test]
+    public function it_gives_each_failed_message_its_own_id(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $queue->reserve()?->fail();
+        $queue->reserve()?->fail();
+
+        [$first, $second] = $queue->failed();
+
+        self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $first->id);
+        self::assertNotSame($first->id, $second->id);
+    }
+
+    #[Test]
+    public function it_finds_a_failed_message_by_its_id(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('first', 'one'));
+        $queue->enqueue(new QueuedMessage('second', 'two'));
+        $queue->reserve()?->fail();
+        $queue->reserve()?->fail();
+
+        [$first, $second] = $queue->failed();
+
+        self::assertSame($first, $queue->findFailed($first->id));
+        self::assertSame($second, $queue->findFailed($second->id));
+    }
+
+    #[Test]
+    public function it_finds_nothing_for_an_unknown_id(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $queue->reserve()?->fail();
+
+        self::assertNull($queue->findFailed('unknown'));
+    }
+
+    #[Test]
+    public function it_retries_a_failed_message_as_a_new_first_attempt(): void
+    {
+        $queue = new InMemoryQueue();
+        $message = new QueuedMessage('type', 'payload');
+        $queue->enqueue($message);
+        $queue->reserve()?->release();
+        $queue->reserve()?->fail();
+        $id = $queue->failed()[0]->id;
+
+        $queue->retry($id);
+
+        $delivery = $queue->reserve();
+
+        self::assertSame($message, $delivery?->message);
+        self::assertSame(1, $delivery?->attempt);
+        self::assertSame([], $queue->failed());
+        self::assertNull($queue->findFailed($id));
+    }
+
+    #[Test]
+    public function it_retries_a_failed_message_straight_away_after_what_is_already_waiting(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('failed', 'one'), Duration::hours(1));
+        $clock->advance('+1 hour');
+        $queue->reserve()?->fail();
+        $queue->enqueue(new QueuedMessage('waiting', 'two'));
+
+        $queue->retry($queue->failed()[0]->id);
+
+        self::assertSame('waiting', $queue->reserve()?->message->type);
+        self::assertSame('failed', $queue->reserve()?->message->type);
+    }
+
+    #[Test]
+    public function it_records_a_retried_message_that_fails_again_under_a_new_id(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $queue->reserve()?->fail();
+        $id = $queue->failed()[0]->id;
+
+        $queue->retry($id);
+        $queue->reserve()?->fail();
+
+        self::assertCount(1, $queue->failed());
+        self::assertNotSame($id, $queue->failed()[0]->id);
+        self::assertSame(1, $queue->failed()[0]->attempt);
+    }
+
+    #[Test]
+    public function it_forgets_a_failed_message_without_delivering_it_again(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('forgotten', 'one'));
+        $queue->enqueue(new QueuedMessage('kept', 'two'));
+        $queue->reserve()?->fail();
+        $queue->reserve()?->fail();
+        [$forgotten, $kept] = $queue->failed();
+
+        $queue->forget($forgotten->id);
+
+        self::assertSame([$kept], $queue->failed());
+        self::assertNull($queue->findFailed($forgotten->id));
+        self::assertNull($queue->reserve());
+    }
+
+    /**
+     * @return iterable<string, array{callable(InMemoryQueue, string): void}>
+     */
+    public static function failedMessageOperations(): iterable
+    {
+        yield 'retrying' => [static fn(InMemoryQueue $queue, string $id): null => $queue->retry($id)];
+        yield 'forgetting' => [static fn(InMemoryQueue $queue, string $id): null => $queue->forget($id)];
+    }
+
+    /**
+     * @param callable(InMemoryQueue, string): void $operation
+     */
+    #[Test]
+    #[DataProvider('failedMessageOperations')]
+    public function it_refuses_an_unknown_failed_message(callable $operation): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $queue->reserve()?->fail();
+
+        try {
+            $unknown = 'unknown';
+            $operation($queue, $unknown);
+            self::fail('An unknown failed message was accepted.');
+        } catch (FailedMessageNotFoundException $exception) {
+            self::assertSame(['id' => 'unknown'], $exception->context);
+            self::assertCount(1, $queue->failed());
+            self::assertNull($queue->reserve());
+        }
+    }
+
+    /**
+     * @param callable(InMemoryQueue, string): void $operation
+     */
+    #[Test]
+    #[DataProvider('failedMessageOperations')]
+    public function it_refuses_a_failed_message_it_already_retried_or_forgot(callable $operation): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $queue->reserve()?->fail();
+        $id = $queue->failed()[0]->id;
+        $operation($queue, $id);
+
+        $this->expectException(FailedMessageNotFoundException::class);
+
+        $operation($queue, $id);
     }
 }

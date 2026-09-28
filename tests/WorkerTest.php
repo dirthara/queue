@@ -9,6 +9,7 @@ use Dirthara\Queue\Worker;
 use PHPUnit\Framework\TestCase;
 use Dirthara\Queue\WorkerOutcome;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Queue\ValueObject\Failure;
 use Dirthara\Queue\Contract\RetryPolicy;
 use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\Contract\BackoffPolicy;
@@ -62,7 +63,7 @@ final class WorkerTest extends TestCase
         self::assertNull($result->failure);
         self::assertEquals([new SendWelcomeEmail('ada@example.com')], $handled);
         self::assertNull($queue->reserve());
-        self::assertSame([], $queue->failed);
+        self::assertSame([], $queue->failed());
     }
 
     #[Test]
@@ -182,8 +183,8 @@ final class WorkerTest extends TestCase
         self::assertSame(WorkerOutcome::Failed, $result->outcome);
         self::assertSame($failure, $result->failure);
         self::assertNull($queue->reserve());
-        self::assertCount(1, $queue->failed);
-        self::assertSame($failure, $queue->failed[0]->failure);
+        self::assertCount(1, $queue->failed());
+        self::assertEquals(Failure::fromThrowable($failure), $queue->failed()[0]->failure);
         self::assertSame([], $backoff->asked);
     }
 
@@ -202,8 +203,8 @@ final class WorkerTest extends TestCase
             ->runOnce();
 
         self::assertNull($queue->reserve());
-        self::assertCount(1, $queue->failed);
-        self::assertSame($result->failure, $queue->failed[0]->failure);
+        self::assertCount(1, $queue->failed());
+        self::assertSame(MessageSerializationException::class, $queue->failed()[0]->failure?->type);
     }
 
     #[Test]
@@ -227,7 +228,7 @@ final class WorkerTest extends TestCase
         self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
         self::assertSame(WorkerOutcome::Idle, $worker->runOnce()->outcome);
         self::assertCount(3, $attempts);
-        self::assertCount(1, $queue->failed);
+        self::assertCount(1, $queue->failed());
     }
 
     #[Test]
@@ -252,7 +253,7 @@ final class WorkerTest extends TestCase
         self::assertSame(WorkerOutcome::Handled, $worker->runOnce()->outcome);
         self::assertSame(WorkerOutcome::Idle, $worker->runOnce()->outcome);
         self::assertCount(2, $attempts);
-        self::assertSame([], $queue->failed);
+        self::assertSame([], $queue->failed());
     }
 
     #[Test]
