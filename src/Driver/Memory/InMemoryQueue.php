@@ -11,6 +11,7 @@ use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
 use Dirthara\Queue\ValueObject\Failure;
 use Dirthara\Queue\ValueObject\Duration;
+use Dirthara\Queue\ValueObject\FailedMessage;
 use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Contract\FailedMessageRepository;
 use Dirthara\Queue\Exception\FailedMessageNotFoundException;

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Queue\Tests\Driver\Memory;
+namespace Dirthara\Queue\Tests\ValueObject;
 
 use RuntimeException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\ValueObject\Failure;
+use Dirthara\Queue\ValueObject\FailedMessage;
 use Dirthara\Queue\ValueObject\QueuedMessage;
-use Dirthara\Queue\Driver\Memory\FailedMessage;
 
 final class FailedMessageTest extends TestCase
 {

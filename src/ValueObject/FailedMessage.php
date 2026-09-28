@@ -2,10 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Queue\Driver\Memory;
-
-use Dirthara\Queue\ValueObject\Failure;
-use Dirthara\Queue\ValueObject\QueuedMessage;
+namespace Dirthara\Queue\ValueObject;
 
 final readonly class FailedMessage
 {

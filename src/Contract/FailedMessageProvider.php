@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Queue\Contract;
 
-use Dirthara\Queue\Driver\Memory\FailedMessage;
+use Dirthara\Queue\ValueObject\FailedMessage;
 
 interface FailedMessageProvider
 {

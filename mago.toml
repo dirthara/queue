@@ -114,6 +114,12 @@ enabled = false
 [linter.rules.too-many-properties]
 enabled = false
 
+# Contracts are transport-neutral, so they never depend on a driver.
+[guard.perimeter]
+restrictions = [
+    { dependency = "Dirthara\\Queue\\Driver\\**", deny-from = ["Dirthara\\Queue\\Contract"] },
+]
+
 # The package depends on PHP and dirthara/messaging; add a dependency here when the package requires one. Tests may
 # use anything.
 [[guard.perimeter.rules]]
