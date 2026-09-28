@@ -16,16 +16,6 @@ use function get_debug_type;
 use function set_error_handler;
 use function restore_error_handler;
 
-/**
- * Serializes messages with PHP's native serialize() and unserialize().
- *
- * Only use this serializer with a queue that nothing untrusted can write to. Deserializing lets a payload instantiate
- * any loaded class, and that class's __unserialize(), __wakeup(), and __destruct() run before the type check rejects
- * it, so a forged payload can trigger object injection. Restricting allowed_classes to the declared type would prevent
- * this, but would also stop objects nested inside a message from being restored.
- *
- * To be resolved before the first release; see CONTRIBUTING.md, "Before the first release".
- */
 final readonly class NativeMessageSerializer implements MessageSerializer
 {
     /**
@@ -47,14 +37,12 @@ final readonly class NativeMessageSerializer implements MessageSerializer
      */
     public function deserialize(QueuedMessage $message): object
     {
-        // unserialize() returns false for an empty payload without reporting it.
         if ($message->payload === '') {
             throw MessageSerializationException::unableToDeserialize($message->type);
         }
 
         $malformed = false;
 
-        // unserialize() reports a malformed or truncated payload, and trailing data after a valid one, as a warning.
         set_error_handler(static function () use (&$malformed): bool {
             $malformed = true;
 
@@ -62,7 +50,7 @@ final readonly class NativeMessageSerializer implements MessageSerializer
         });
 
         try {
-            // @mago-expect analysis:mixed-assignment -- a payload can hold any value, which is narrowed below
+            // @mago-expect analysis:mixed-assignment A payload can hold any value, which the checks below narrow
             $value = unserialize($message->payload, ['allowed_classes' => true]);
         } catch (Exception $exception) {
             throw MessageSerializationException::unableToDeserialize($message->type, $exception);

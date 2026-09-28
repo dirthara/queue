@@ -44,4 +44,15 @@ final class DeliveryAlreadySettledException extends RuntimeException implements 
             context: ['message' => self::printable($message), 'settled' => 'released'],
         );
     }
+
+    public static function alreadyFailed(string $message): self
+    {
+        return new self(
+            message: sprintf(
+                'Unable to settle the delivery of "%s": it was already failed, and a delivery is settled only once.',
+                self::printable($message),
+            ),
+            context: ['message' => self::printable($message), 'settled' => 'failed'],
+        );
+    }
 }

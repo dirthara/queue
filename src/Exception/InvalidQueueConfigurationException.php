@@ -36,9 +36,6 @@ final class InvalidQueueConfigurationException extends InvalidArgumentException 
         );
     }
 
-    /**
-     * The value itself is left out of the message and the context, because an option can hold a credential.
-     */
     public static function invalidOptionType(string $driver, string $key, string $expected, mixed $value): self
     {
         return new self(

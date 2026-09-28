@@ -9,9 +9,6 @@ use RuntimeException;
 
 use function sprintf;
 
-/**
- * The payload is never part of the message or the context, because a message can carry personal data.
- */
 final class MessageSerializationException extends RuntimeException implements QueueException
 {
     use HasExceptionContext;

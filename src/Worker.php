@@ -6,6 +6,8 @@ namespace Dirthara\Queue;
 
 use Throwable;
 use Dirthara\Queue\Contract\Queue;
+use Dirthara\Queue\Contract\Delivery;
+use Dirthara\Queue\Contract\RetryPolicy;
 use Dirthara\Queue\Contract\MessageSerializer;
 use Dirthara\Queue\Contract\MessageHandlerProvider;
 
@@ -15,6 +17,7 @@ final readonly class Worker
         private Queue $queue,
         private MessageSerializer $serializer,
         private MessageHandlerProvider $handlers,
+        private RetryPolicy $retryPolicy,
     ) {}
 
     /**
@@ -34,7 +37,7 @@ final readonly class Worker
 
             $handler($message);
         } catch (Throwable $exception) {
-            $delivery->release();
+            $this->settleFailure($delivery, $exception);
 
             throw $exception;
         }
@@ -42,5 +45,16 @@ final readonly class Worker
         $delivery->acknowledge();
 
         return true;
+    }
+
+    private function settleFailure(Delivery $delivery, Throwable $failure): void
+    {
+        if ($this->retryPolicy->shouldRetry($delivery, $failure)) {
+            $delivery->release();
+
+            return;
+        }
+
+        $delivery->fail($failure);
     }
 }

@@ -75,4 +75,19 @@ final class DeliveryAlreadySettledExceptionTest extends TestCase
             $exception->context,
         );
     }
+
+    #[Test]
+    public function it_describes_a_delivery_that_was_already_failed(): void
+    {
+        $exception = DeliveryAlreadySettledException::alreadyFailed("class@anonymous\0/app/src/Job.php:3$0");
+
+        self::assertSame(
+            'Unable to settle the delivery of "class@anonymous\\000/app/src/Job.php:3$0": it was already failed, and a delivery is settled only once.',
+            $exception->getMessage(),
+        );
+        self::assertSame(
+            ['message' => 'class@anonymous\\000/app/src/Job.php:3$0', 'settled' => 'failed'],
+            $exception->context,
+        );
+    }
 }

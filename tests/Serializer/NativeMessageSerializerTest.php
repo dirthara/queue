@@ -137,7 +137,6 @@ final class NativeMessageSerializerTest extends TestCase
     #[Test]
     public function it_wraps_an_exception_thrown_while_restoring_an_object(): void
     {
-        // ArrayObject rejects a storage value that is neither an array nor an object with an UnexpectedValueException.
         $payload = 'O:11:"ArrayObject":4:{i:0;i:0;i:1;i:5;i:2;a:0:{}i:3;N;}';
 
         try {

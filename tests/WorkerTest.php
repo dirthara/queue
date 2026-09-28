@@ -10,19 +10,30 @@ use PHPUnit\Framework\TestCase;
 use Dirthara\Queue\QueuedMessage;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\MessageHandlerRegistry;
+use Dirthara\Queue\Retry\NeverRetryPolicy;
+use Dirthara\Queue\Retry\AttemptsRetryPolicy;
+use Dirthara\Queue\Retry\UnlimitedRetryPolicy;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
 use Dirthara\Queue\Serializer\NativeMessageSerializer;
+use Dirthara\Queue\Tests\Fixtures\RecordingRetryPolicy;
 use Dirthara\Queue\Exception\MessageSerializationException;
 use Dirthara\Queue\Exception\MessageHandlerNotFoundException;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerializer;
+
+use function count;
 
 final class WorkerTest extends TestCase
 {
     #[Test]
     public function it_does_nothing_when_the_queue_is_empty(): void
     {
-        $worker = new Worker(new InMemoryQueue(), new SendWelcomeEmailSerializer(), new MessageHandlerRegistry());
+        $worker = new Worker(
+            new InMemoryQueue(),
+            new SendWelcomeEmailSerializer(),
+            new MessageHandlerRegistry(),
+            new UnlimitedRetryPolicy(),
+        );
 
         self::assertFalse($worker->runOnce());
     }
@@ -39,7 +50,7 @@ final class WorkerTest extends TestCase
             $handled[] = $message;
         });
 
-        $worker = new Worker($queue, new SendWelcomeEmailSerializer(), $handlers);
+        $worker = new Worker($queue, new SendWelcomeEmailSerializer(), $handlers, new UnlimitedRetryPolicy());
 
         self::assertTrue($worker->runOnce());
         self::assertEquals([new SendWelcomeEmail('ada@example.com')], $handled);
@@ -59,7 +70,7 @@ final class WorkerTest extends TestCase
             throw $failure;
         });
 
-        $worker = new Worker($queue, new SendWelcomeEmailSerializer(), $handlers);
+        $worker = new Worker($queue, new SendWelcomeEmailSerializer(), $handlers, new UnlimitedRetryPolicy());
 
         try {
             $worker->runOnce();
@@ -78,7 +89,12 @@ final class WorkerTest extends TestCase
         $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
         $queue->enqueue($message);
 
-        $worker = new Worker($queue, new SendWelcomeEmailSerializer(), new MessageHandlerRegistry());
+        $worker = new Worker(
+            $queue,
+            new SendWelcomeEmailSerializer(),
+            new MessageHandlerRegistry(),
+            new UnlimitedRetryPolicy(),
+        );
 
         try {
             $worker->runOnce();
@@ -101,7 +117,7 @@ final class WorkerTest extends TestCase
             $handled = true;
         });
 
-        $worker = new Worker($queue, new NativeMessageSerializer(), $handlers);
+        $worker = new Worker($queue, new NativeMessageSerializer(), $handlers, new UnlimitedRetryPolicy());
 
         try {
             $worker->runOnce();
@@ -125,8 +141,153 @@ final class WorkerTest extends TestCase
             $handled[] = $message;
         });
 
-        self::assertTrue(new Worker($queue, $serializer, $handlers)->runOnce());
+        self::assertTrue(new Worker($queue, $serializer, $handlers, new UnlimitedRetryPolicy())->runOnce());
         self::assertEquals([new SendWelcomeEmail('ada@example.com')], $handled);
         self::assertNull($queue->reserve());
+    }
+
+    #[Test]
+    public function it_does_not_consult_the_retry_policy_when_the_handler_succeeds(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'));
+
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message): void {});
+        $policy = new RecordingRetryPolicy(retry: true);
+
+        self::assertTrue(new Worker($queue, new SendWelcomeEmailSerializer(), $handlers, $policy)->runOnce());
+        self::assertSame([], $policy->asked);
+    }
+
+    #[Test]
+    public function it_asks_the_retry_policy_about_the_failed_delivery_and_its_failure(): void
+    {
+        $queue = new InMemoryQueue();
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
+        $queue->enqueue($message);
+
+        $failure = new RuntimeException('The mail server is unavailable.');
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use ($failure): void {
+            throw $failure;
+        });
+        $policy = new RecordingRetryPolicy(retry: true);
+
+        try {
+            new Worker($queue, new SendWelcomeEmailSerializer(), $handlers, $policy)->runOnce();
+            self::fail('The handler failure was not rethrown.');
+        } catch (RuntimeException) {
+            self::assertCount(1, $policy->asked);
+            self::assertSame($message, $policy->asked[0]['delivery']->message);
+            self::assertSame(1, $policy->asked[0]['delivery']->attempt);
+            self::assertSame($failure, $policy->asked[0]['failure']);
+        }
+    }
+
+    #[Test]
+    public function it_fails_the_message_and_rethrows_when_the_retry_policy_declines(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'));
+
+        $failure = new RuntimeException('The mail server is unavailable.');
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use ($failure): void {
+            throw $failure;
+        });
+
+        try {
+            new Worker($queue, new SendWelcomeEmailSerializer(), $handlers, new NeverRetryPolicy())->runOnce();
+            self::fail('The handler failure was not rethrown.');
+        } catch (RuntimeException $exception) {
+            self::assertSame($failure, $exception);
+            self::assertNull($queue->reserve());
+            self::assertCount(1, $queue->failed);
+            self::assertSame($failure, $queue->failed[0]->failure);
+        }
+    }
+
+    #[Test]
+    public function it_fails_a_message_it_cannot_deserialize_when_the_retry_policy_declines(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'not a serialized value'));
+
+        $worker = new Worker(
+            $queue,
+            new NativeMessageSerializer(),
+            new MessageHandlerRegistry(),
+            new NeverRetryPolicy(),
+        );
+
+        try {
+            $worker->runOnce();
+            self::fail('A payload that cannot be deserialized was not rethrown.');
+        } catch (MessageSerializationException $exception) {
+            self::assertNull($queue->reserve());
+            self::assertCount(1, $queue->failed);
+            self::assertSame($exception, $queue->failed[0]->failure);
+        }
+    }
+
+    #[Test]
+    public function it_attempts_a_failing_message_as_often_as_the_retry_policy_allows(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'));
+
+        $attempts = [];
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use (&$attempts): void {
+            $attempts[] = $message;
+
+            throw new RuntimeException('The mail server is unavailable.');
+        });
+
+        $worker = new Worker($queue, new SendWelcomeEmailSerializer(), $handlers, new AttemptsRetryPolicy(3));
+
+        for ($run = 0; $run < 3; $run++) {
+            try {
+                $worker->runOnce();
+                self::fail('The handler failure was not rethrown.');
+            } catch (RuntimeException) {
+                self::assertCount($run + 1, $attempts);
+            }
+        }
+
+        self::assertFalse($worker->runOnce());
+        self::assertCount(3, $attempts);
+        self::assertCount(1, $queue->failed);
+    }
+
+    #[Test]
+    public function it_handles_a_message_that_succeeds_on_a_retry(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'));
+
+        $attempts = [];
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use (&$attempts): void {
+            $attempts[] = $message;
+
+            if (count($attempts) === 1) {
+                throw new RuntimeException('The mail server is unavailable.');
+            }
+        });
+
+        $worker = new Worker($queue, new SendWelcomeEmailSerializer(), $handlers, new AttemptsRetryPolicy(3));
+
+        try {
+            $worker->runOnce();
+            self::fail('The handler failure was not rethrown.');
+        } catch (RuntimeException) {
+            self::assertTrue($worker->runOnce());
+        }
+
+        self::assertCount(2, $attempts);
+        self::assertFalse($worker->runOnce());
+        self::assertSame([], $queue->failed);
     }
 }
