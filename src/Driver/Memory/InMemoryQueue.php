@@ -42,9 +42,9 @@ final class InMemoryQueue implements Queue
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
 
-    public function enqueue(QueuedMessage $message): void
+    public function enqueue(QueuedMessage $message, ?Duration $delay = null): void
     {
-        $this->pending[] = new QueueEntry($message);
+        $this->pending[] = new QueueEntry($message, availableAt: self::availableAfter(($this->now)(), $delay));
     }
 
     public function reserve(): ?Delivery

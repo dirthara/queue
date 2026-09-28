@@ -443,4 +443,68 @@ final class InMemoryQueueTest extends TestCase
 
         self::assertNull($queue->reserve());
     }
+
+    #[Test]
+    public function it_holds_back_a_message_enqueued_with_a_delay_until_the_delay_has_passed(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $message = new QueuedMessage('type', 'payload');
+
+        $queue->enqueue($message, Duration::seconds(30));
+
+        self::assertNull($queue->reserve());
+
+        $clock->advance('+29 seconds +999 milliseconds');
+        self::assertNull($queue->reserve());
+
+        $clock->advance('+1 millisecond');
+        $delivery = $queue->reserve();
+
+        self::assertSame($message, $delivery?->message);
+        self::assertSame(1, $delivery?->attempt);
+    }
+
+    #[Test]
+    public function it_makes_a_message_enqueued_with_a_zero_delay_available_straight_away(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+
+        $queue->enqueue(new QueuedMessage('type', 'payload'), Duration::milliseconds(0));
+
+        self::assertNotNull($queue->reserve());
+    }
+
+    #[Test]
+    public function it_delivers_messages_enqueued_with_different_delays_as_each_becomes_available(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('later', 'one'), Duration::minutes(2));
+        $queue->enqueue(new QueuedMessage('sooner', 'two'), Duration::minutes(1));
+
+        $clock->advance('+1 minute');
+        self::assertSame('sooner', $queue->reserve()?->message->type);
+        self::assertNull($queue->reserve());
+
+        $clock->advance('+1 minute');
+        self::assertSame('later', $queue->reserve()?->message->type);
+    }
+
+    #[Test]
+    public function it_measures_a_retry_delay_from_the_release_rather_than_the_original_delay(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('type', 'payload'), Duration::minutes(10));
+
+        $clock->advance('+10 minutes');
+        $queue->reserve()?->release(Duration::seconds(5));
+
+        self::assertNull($queue->reserve());
+
+        $clock->advance('+5 seconds');
+        self::assertSame(2, $queue->reserve()?->attempt);
+    }
 }

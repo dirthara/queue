@@ -11,6 +11,7 @@ use Dirthara\Queue\QueuedMessage;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\MessageHandlerRegistry;
+use Dirthara\Queue\QueuedMessagePublisher;
 use Dirthara\Queue\Retry\NeverRetryPolicy;
 use Dirthara\Queue\Backoff\NoBackoffPolicy;
 use Dirthara\Queue\Tests\Fixtures\TestClock;
@@ -458,5 +459,33 @@ final class WorkerTest extends TestCase
         } catch (RuntimeException) {
             self::assertCount(2, $attempts);
         }
+    }
+
+    #[Test]
+    public function it_handles_a_message_published_after_a_delay_once_the_delay_has_passed(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $serializer = new NativeMessageSerializer();
+
+        $handled = [];
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use (&$handled): void {
+            $handled[] = $message;
+        });
+
+        $worker = new Worker($queue, $serializer, $handlers, new UnlimitedRetryPolicy(), new NoBackoffPolicy());
+
+        new QueuedMessagePublisher($queue, $serializer)->publishAfter(
+            new SendWelcomeEmail('ada@example.com'),
+            Duration::hours(1),
+        );
+
+        self::assertFalse($worker->runOnce());
+
+        $clock->advance('+1 hour');
+
+        self::assertTrue($worker->runOnce());
+        self::assertEquals([new SendWelcomeEmail('ada@example.com')], $handled);
     }
 }
