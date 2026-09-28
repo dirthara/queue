@@ -2,7 +2,7 @@
 id: workers
 title: Workers
 sidebar_position: 5
-description: Running a worker continuously, and observing the result of every delivery it processes.
+description: Running a worker continuously, observing the result of every delivery, and limiting how long a run lasts.
 ---
 
 A `Worker` processes one delivery at a time: `runOnce()` reserves the next available message, handles it, settles it,
@@ -74,3 +74,45 @@ result.
 
 An observer runs inside the loop, so an exception it throws is not swallowed: it escapes `run()` like any other failure,
 and the runner can be run again afterwards.
+
+## Lifecycle limits
+
+A long-running PHP process is usually recycled now and then, for example to release memory or to pick up a deployment.
+`WorkerLimits` tells a runner when its current run should end:
+
+```php
+use Dirthara\Queue\ValueObject\WorkerLimits;
+
+$runner = new WorkerRunner(
+    worker: $worker,
+    idleDelay: Duration::seconds(1),
+    limits: new WorkerLimits(
+        maxMessages: 1000,
+        maxRuntime: Duration::hours(1),
+    ),
+);
+
+$runner->run();
+```
+
+When either limit is reached, `run()` returns normally after the delivery in progress has been settled and observed.
+Whatever supervises the process, such as a process manager, a container orchestrator, or a framework command, then
+decides whether to start the worker again. Spawning, restarting, daemonising, signal handling, and worker pools are
+outside this package.
+
+- **`maxMessages`** counts handled and failed deliveries, including every retried attempt of the same message. Idle
+  polls do not count. It has to be at least 1.
+- **`maxRuntime`** is the time elapsed since `run()` started, measured with a monotonic clock. It has to be longer than
+  0 milliseconds. A message that is already being handled when the runtime passes is never interrupted: it finishes, is
+  settled, and is observed, and the runner then stops without reserving another message. While idle, the runner sleeps
+  no longer than the runtime that remains.
+- **`new WorkerLimits()`**, the default, sets neither limit, and the runner keeps running until it is stopped.
+
+Each call to `run()` starts counting messages and measuring runtime from zero, so a runner that stopped at a limit can
+be run again.
+
+## Stopping a runner
+
+`stop()` ends the run that is in progress, after the current delivery has been settled and observed. It only affects a
+runner that is running: calling `stop()` before `run()` has no effect, and the next `run()` starts normally. Calling
+`run()` while the runner is already running throws a `WorkerAlreadyRunningException`.

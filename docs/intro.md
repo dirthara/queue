@@ -14,4 +14,4 @@ release yet. API documentation will accompany its implementation.
 
 See [installation](installation.md) for requirements and development setup, [serialization](serialization.md) for
 what the native serializer trusts, [execution policies](execution-policies.md) for how a worker retries, delays,
-or fails each message type, and [workers](workers.md) for running and observing a worker.
+or fails each message type, and [workers](workers.md) for running, observing, and limiting a worker.
