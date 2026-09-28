@@ -6,11 +6,14 @@ namespace Dirthara\Queue\ValueObject;
 
 use Throwable;
 use Dirthara\Queue\WorkerOutcome;
+use Dirthara\Queue\Exception\InvalidWorkerResultException;
 
 final readonly class WorkerResult
 {
     private function __construct(
         public WorkerOutcome $outcome,
+        public ?QueuedMessage $message = null,
+        public ?int $attempt = null,
         public ?Throwable $failure = null,
     ) {}
 
@@ -19,13 +22,31 @@ final readonly class WorkerResult
         return new self(WorkerOutcome::Idle);
     }
 
-    public static function handled(): self
+    /**
+     * @throws InvalidWorkerResultException
+     */
+    public static function handled(QueuedMessage $message, int $attempt): self
     {
-        return new self(WorkerOutcome::Handled);
+        return new self(WorkerOutcome::Handled, $message, self::attempt($attempt));
     }
 
-    public static function failed(Throwable $failure): self
+    /**
+     * @throws InvalidWorkerResultException
+     */
+    public static function failed(QueuedMessage $message, int $attempt, Throwable $failure): self
     {
-        return new self(WorkerOutcome::Failed, $failure);
+        return new self(WorkerOutcome::Failed, $message, self::attempt($attempt), $failure);
+    }
+
+    /**
+     * @throws InvalidWorkerResultException
+     */
+    private static function attempt(int $attempt): int
+    {
+        if ($attempt < 1) {
+            throw InvalidWorkerResultException::attemptBeforeFirst($attempt);
+        }
+
+        return $attempt;
     }
 }

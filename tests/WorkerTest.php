@@ -8,6 +8,7 @@ use RuntimeException;
 use Dirthara\Queue\Worker;
 use PHPUnit\Framework\TestCase;
 use Dirthara\Queue\WorkerOutcome;
+use Dirthara\Queue\Contract\Queue;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\ValueObject\Failure;
 use Dirthara\Queue\Contract\RetryPolicy;
@@ -28,6 +29,7 @@ use Dirthara\Queue\MessageExecutionPolicyRegistry;
 use Dirthara\Queue\Tests\Fixtures\GenerateInvoice;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
 use Dirthara\Queue\Serializer\NativeMessageSerializer;
+use Dirthara\Queue\Tests\Fixtures\SingleDeliveryQueue;
 use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
 use Dirthara\Queue\Tests\Fixtures\RecordingRetryPolicy;
 use Dirthara\Queue\Tests\Fixtures\RecordingBackoffPolicy;
@@ -547,8 +549,117 @@ final class WorkerTest extends TestCase
         self::assertSame([], $welcomeBackoff->asked);
     }
 
+    #[Test]
+    public function it_describes_the_handled_delivery_by_its_queued_message_and_attempt(): void
+    {
+        $queue = new InMemoryQueue();
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
+        $queue->enqueue($message);
+        $queue->reserve()?->release();
+
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message): void {});
+
+        $result = self::worker($queue, $handlers)->runOnce();
+
+        self::assertSame(WorkerOutcome::Handled, $result->outcome);
+        self::assertSame($message, $result->message);
+        self::assertSame(2, $result->attempt);
+        self::assertNull($result->failure);
+    }
+
+    #[Test]
+    public function it_describes_the_failed_delivery_by_its_queued_message_attempt_and_original_failure(): void
+    {
+        $queue = new InMemoryQueue();
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
+        $queue->enqueue($message);
+        $failure = new RuntimeException('The mail server is unavailable.');
+        $worker = self::worker($queue, self::failingHandlers($failure));
+
+        $first = $worker->runOnce();
+        $second = $worker->runOnce();
+
+        self::assertSame([$message, 1, $failure], [$first->message, $first->attempt, $first->failure]);
+        self::assertSame([$message, 2, $failure], [$second->message, $second->attempt, $second->failure]);
+    }
+
+    #[Test]
+    public function it_describes_a_payload_it_cannot_deserialize_by_its_queued_message(): void
+    {
+        $queue = new InMemoryQueue();
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'not a serialized value');
+        $queue->enqueue($message);
+
+        $result = self::worker($queue, new MessageHandlerRegistry(), serializer: new NativeMessageSerializer())
+            ->runOnce();
+
+        self::assertSame(WorkerOutcome::Failed, $result->outcome);
+        self::assertSame($message, $result->message);
+        self::assertSame(1, $result->attempt);
+    }
+
+    #[Test]
+    public function it_lets_a_failure_to_acknowledge_a_handled_delivery_escape(): void
+    {
+        $settlementFailure = new RuntimeException('The queue is unreachable.');
+        $queue = new SingleDeliveryQueue(
+            new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'),
+            $settlementFailure,
+        );
+
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message): void {});
+
+        try {
+            self::worker($queue, $handlers)->runOnce();
+            self::fail('The settlement failure did not escape.');
+        } catch (RuntimeException $exception) {
+            self::assertSame($settlementFailure, $exception);
+        }
+    }
+
+    #[Test]
+    public function it_lets_a_failure_to_release_a_failed_delivery_escape(): void
+    {
+        $settlementFailure = new RuntimeException('The queue is unreachable.');
+        $queue = new SingleDeliveryQueue(
+            new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'),
+            $settlementFailure,
+        );
+
+        try {
+            self::worker($queue, self::failingHandlers(new RuntimeException('The handler failed.')))->runOnce();
+            self::fail('The settlement failure did not escape.');
+        } catch (RuntimeException $exception) {
+            self::assertSame($settlementFailure, $exception);
+        }
+    }
+
+    #[Test]
+    public function it_lets_a_failure_to_fail_a_delivery_escape(): void
+    {
+        $settlementFailure = new RuntimeException('The queue is unreachable.');
+        $queue = new SingleDeliveryQueue(
+            new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'),
+            $settlementFailure,
+        );
+
+        try {
+            self::worker(
+                $queue,
+                self::failingHandlers(new RuntimeException('The handler failed.')),
+                new NeverRetryPolicy(),
+            )
+                ->runOnce();
+            self::fail('The settlement failure did not escape.');
+        } catch (RuntimeException $exception) {
+            self::assertSame($settlementFailure, $exception);
+        }
+    }
+
     private static function worker(
-        InMemoryQueue $queue,
+        Queue $queue,
         MessageHandlerRegistry $handlers,
         RetryPolicy $retryPolicy = new UnlimitedRetryPolicy(),
         BackoffPolicy $backoffPolicy = new NoBackoffPolicy(),

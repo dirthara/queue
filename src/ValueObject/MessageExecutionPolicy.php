@@ -7,7 +7,7 @@ namespace Dirthara\Queue\ValueObject;
 use Dirthara\Queue\Contract\RetryPolicy;
 use Dirthara\Queue\Contract\BackoffPolicy;
 
-final readonly class    MessageExecutionPolicy
+final readonly class MessageExecutionPolicy
 {
     public function __construct(
         public RetryPolicy $retry,

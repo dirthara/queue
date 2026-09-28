@@ -7,6 +7,8 @@ namespace Dirthara\Queue;
 use Closure;
 use Throwable;
 use Dirthara\Queue\ValueObject\Duration;
+use Dirthara\Queue\Contract\WorkerObserver;
+use Dirthara\Queue\Observer\NullWorkerObserver;
 use Dirthara\Queue\Exception\WorkerAlreadyRunningException;
 
 use function sleep;
@@ -28,6 +30,7 @@ final class WorkerRunner
     public function __construct(
         private readonly Worker $worker,
         private readonly Duration $idleDelay,
+        private readonly WorkerObserver $observer = new NullWorkerObserver(),
         ?Closure $sleep = null,
     ) {
         $this->sleep = $sleep ?? static function (Duration $duration): void {
@@ -62,7 +65,11 @@ final class WorkerRunner
     private function loop(): void
     {
         while ($this->running) {
-            if ($this->worker->runOnce()->outcome !== WorkerOutcome::Idle) {
+            $result = $this->worker->runOnce();
+
+            $this->observer->observe($result);
+
+            if ($result->outcome !== WorkerOutcome::Idle) {
                 continue;
             }
 

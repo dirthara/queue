@@ -44,12 +44,12 @@ final readonly class Worker
         } catch (Throwable $failure) {
             $this->settleFailure($delivery, $failure, $policy);
 
-            return WorkerResult::failed($failure);
+            return WorkerResult::failed($delivery->message, $delivery->attempt, $failure);
         }
 
         $delivery->acknowledge();
 
-        return WorkerResult::handled();
+        return WorkerResult::handled($delivery->message, $delivery->attempt);
     }
 
     private function settleFailure(Delivery $delivery, Throwable $failure, MessageExecutionPolicy $policy): void

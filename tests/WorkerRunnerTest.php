@@ -9,6 +9,7 @@ use RuntimeException;
 use Dirthara\Queue\Worker;
 use PHPUnit\Framework\TestCase;
 use Dirthara\Queue\WorkerRunner;
+use Dirthara\Queue\WorkerOutcome;
 use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
 use PHPUnit\Framework\Attributes\Test;
@@ -17,17 +18,21 @@ use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\MessageHandlerRegistry;
 use Dirthara\Queue\Retry\NeverRetryPolicy;
 use Dirthara\Queue\Backoff\NoBackoffPolicy;
+use Dirthara\Queue\ValueObject\WorkerResult;
+use Dirthara\Queue\Retry\AttemptsRetryPolicy;
 use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Retry\UnlimitedRetryPolicy;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\MessageExecutionPolicyRegistry;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
 use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
+use Dirthara\Queue\Tests\Fixtures\RecordingWorkerObserver;
 use Dirthara\Queue\Exception\WorkerAlreadyRunningException;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerializer;
 
 use function count;
 use function hrtime;
+use function array_map;
 
 final class WorkerRunnerTest extends TestCase
 {
@@ -40,7 +45,7 @@ final class WorkerRunnerTest extends TestCase
         $runner = new WorkerRunner(
             self::worker(new InMemoryQueue(), new MessageHandlerRegistry()),
             $idleDelay,
-            static function (Duration $duration) use (&$slept, &$runner): void {
+            sleep: static function (Duration $duration) use (&$slept, &$runner): void {
                 $slept[] = $duration;
 
                 if (count($slept) === 3) {
@@ -71,7 +76,7 @@ final class WorkerRunnerTest extends TestCase
         $runner = new WorkerRunner(
             self::worker($queue, $handlers),
             Duration::seconds(1),
-            static function (Duration $duration) use (&$events, &$runner): void {
+            sleep: static function (Duration $duration) use (&$events, &$runner): void {
                 $events[] = 'slept';
                 $runner?->stop();
             },
@@ -105,7 +110,7 @@ final class WorkerRunnerTest extends TestCase
         $runner = new WorkerRunner(
             self::worker($queue, $handlers, new NeverRetryPolicy()),
             Duration::seconds(1),
-            static function (Duration $duration) use (&$events, &$runner): void {
+            sleep: static function (Duration $duration) use (&$events, &$runner): void {
                 $events[] = 'slept';
                 $runner?->stop();
             },
@@ -136,7 +141,7 @@ final class WorkerRunnerTest extends TestCase
         $runner = new WorkerRunner(
             self::worker($queue, $handlers),
             Duration::seconds(1),
-            static function (Duration $duration) use (&$slept): void {
+            sleep: static function (Duration $duration) use (&$slept): void {
                 $slept = true;
             },
         );
@@ -156,7 +161,7 @@ final class WorkerRunnerTest extends TestCase
         $runner = new WorkerRunner(
             self::worker(new InMemoryQueue(), new MessageHandlerRegistry()),
             Duration::seconds(1),
-            static function (Duration $duration) use (&$sleeps, &$runner): void {
+            sleep: static function (Duration $duration) use (&$sleeps, &$runner): void {
                 $sleeps[] = $duration;
                 $runner?->stop();
             },
@@ -176,7 +181,7 @@ final class WorkerRunnerTest extends TestCase
         $runner = new WorkerRunner(
             self::worker(new InMemoryQueue(), new MessageHandlerRegistry()),
             Duration::seconds(1),
-            static function (Duration $duration) use (&$refused, &$runner): void {
+            sleep: static function (Duration $duration) use (&$refused, &$runner): void {
                 try {
                     $runner?->run();
                 } catch (WorkerAlreadyRunningException $exception) {
@@ -216,7 +221,7 @@ final class WorkerRunnerTest extends TestCase
         $runner = new WorkerRunner(
             self::worker($queue, new MessageHandlerRegistry()),
             Duration::seconds(1),
-            static function (Duration $duration): void {},
+            sleep: static function (Duration $duration): void {},
         );
 
         for ($run = 1; $run <= 2; $run++) {
@@ -264,6 +269,166 @@ final class WorkerRunnerTest extends TestCase
         $elapsed = hrtime(true) - $started;
 
         self::assertGreaterThanOrEqual(20_000_000, $elapsed);
+    }
+
+    #[Test]
+    public function it_observes_every_result_in_the_order_it_was_produced(): void
+    {
+        $queue = new InMemoryQueue();
+        $handled = new QueuedMessage(SendWelcomeEmail::class, 'handled@example.com');
+        $failed = new QueuedMessage(SendWelcomeEmail::class, 'fails@example.com');
+        $queue->enqueue($handled);
+        $queue->enqueue($failed);
+        $failure = new RuntimeException('The mail server is unavailable.');
+
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use ($failure): void {
+            if ($message instanceof SendWelcomeEmail && $message->email === 'fails@example.com') {
+                throw $failure;
+            }
+        });
+
+        $runner = null;
+        $observer = new RecordingWorkerObserver();
+        $runner = new WorkerRunner(
+            self::worker($queue, $handlers, new NeverRetryPolicy()),
+            Duration::seconds(1),
+            $observer,
+            sleep: static function (Duration $duration) use (&$runner): void {
+                $runner?->stop();
+            },
+        );
+
+        $runner->run();
+
+        self::assertSame(
+            [WorkerOutcome::Handled, WorkerOutcome::Failed, WorkerOutcome::Idle],
+            array_map(static fn(WorkerResult $result): WorkerOutcome => $result->outcome, $observer->observed),
+        );
+        self::assertSame($handled, $observer->observed[0]->message);
+        self::assertSame(1, $observer->observed[0]->attempt);
+        self::assertSame($failed, $observer->observed[1]->message);
+        self::assertSame($failure, $observer->observed[1]->failure);
+        self::assertNull($observer->observed[2]->message);
+    }
+
+    #[Test]
+    public function it_observes_a_result_before_sleeping_on_it(): void
+    {
+        $events = [];
+        $runner = null;
+        $runner = new WorkerRunner(
+            self::worker(new InMemoryQueue(), new MessageHandlerRegistry()),
+            Duration::seconds(1),
+            new RecordingWorkerObserver(static function (WorkerResult $result) use (&$events): void {
+                $events[] = 'observed';
+            }),
+            sleep: static function (Duration $duration) use (&$events, &$runner): void {
+                $events[] = 'slept';
+
+                if (count($events) === 4) {
+                    $runner?->stop();
+                }
+            },
+        );
+
+        $runner->run();
+
+        self::assertSame(['observed', 'slept', 'observed', 'slept'], $events);
+    }
+
+    #[Test]
+    public function it_observes_every_retry_of_a_failing_message(): void
+    {
+        $queue = new InMemoryQueue();
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
+        $queue->enqueue($message);
+
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message): void {
+            throw new RuntimeException('The mail server is unavailable.');
+        });
+
+        $runner = null;
+        $observer = new RecordingWorkerObserver();
+        $runner = new WorkerRunner(
+            self::worker($queue, $handlers, new AttemptsRetryPolicy(3)),
+            Duration::seconds(1),
+            $observer,
+            sleep: static function (Duration $duration) use (&$runner): void {
+                $runner?->stop();
+            },
+        );
+
+        $runner->run();
+
+        self::assertSame(
+            [1, 2, 3, null],
+            array_map(static fn(WorkerResult $result): ?int => $result->attempt, $observer->observed),
+        );
+        self::assertCount(1, $queue->failed());
+    }
+
+    #[Test]
+    public function it_lets_an_observer_failure_escape_and_can_run_again(): void
+    {
+        $failure = new RuntimeException('The metrics backend is unreachable.');
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'first@example.com'));
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'second@example.com'));
+
+        $handled = [];
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use (&$handled): void {
+            $handled[] = $message;
+        });
+
+        $runner = new WorkerRunner(
+            self::worker($queue, $handlers),
+            Duration::seconds(1),
+            new RecordingWorkerObserver(static function (WorkerResult $result) use ($failure): void {
+                throw $failure;
+            }),
+            sleep: static function (Duration $duration): void {},
+        );
+
+        for ($run = 1; $run <= 2; $run++) {
+            try {
+                $runner->run();
+                self::fail('The observer failure did not escape.');
+            } catch (RuntimeException $exception) {
+                self::assertSame($failure, $exception);
+                self::assertCount($run, $handled);
+            }
+        }
+
+        self::assertNull($queue->reserve());
+    }
+
+    #[Test]
+    public function it_needs_no_observer(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'));
+
+        $handled = [];
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use (&$handled): void {
+            $handled[] = $message;
+        });
+
+        $runner = null;
+        $runner = new WorkerRunner(
+            self::worker($queue, $handlers),
+            Duration::seconds(1),
+            sleep: static function (Duration $duration) use (&$runner): void {
+                $runner?->stop();
+            },
+        );
+
+        $runner->run();
+
+        self::assertEquals([new SendWelcomeEmail('ada@example.com')], $handled);
     }
 
     private static function worker(
