@@ -8,6 +8,7 @@ use Throwable;
 use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
 use Dirthara\Queue\Contract\RetryPolicy;
+use Dirthara\Queue\Contract\BackoffPolicy;
 use Dirthara\Queue\Contract\MessageSerializer;
 use Dirthara\Queue\Contract\MessageHandlerProvider;
 
@@ -18,6 +19,7 @@ final readonly class Worker
         private MessageSerializer $serializer,
         private MessageHandlerProvider $handlers,
         private RetryPolicy $retryPolicy,
+        private BackoffPolicy $backoffPolicy,
     ) {}
 
     /**
@@ -49,12 +51,12 @@ final readonly class Worker
 
     private function settleFailure(Delivery $delivery, Throwable $failure): void
     {
-        if ($this->retryPolicy->shouldRetry($delivery, $failure)) {
-            $delivery->release();
+        if (!$this->retryPolicy->shouldRetry($delivery, $failure)) {
+            $delivery->fail($failure);
 
             return;
         }
 
-        $delivery->fail($failure);
+        $delivery->release($this->backoffPolicy->delay($delivery, $failure));
     }
 }

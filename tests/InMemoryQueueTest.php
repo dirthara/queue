@@ -9,6 +9,8 @@ use PHPUnit\Framework\TestCase;
 use Dirthara\Queue\QueuedMessage;
 use Dirthara\Queue\Contract\Delivery;
 use PHPUnit\Framework\Attributes\Test;
+use Dirthara\Queue\ValueObject\Duration;
+use Dirthara\Queue\Tests\Fixtures\TestClock;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\Exception\DeliveryAlreadySettledException;
@@ -328,5 +330,117 @@ final class InMemoryQueueTest extends TestCase
         } catch (DeliveryAlreadySettledException $exception) {
             self::assertSame(['message' => 'type', 'settled' => $settled], $exception->context);
         }
+    }
+
+    #[Test]
+    public function it_delivers_a_message_released_without_a_delay_again_straight_away(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+
+        $queue->reserve()?->release();
+
+        self::assertSame(2, $queue->reserve()?->attempt);
+    }
+
+    #[Test]
+    public function it_delivers_a_message_released_with_a_zero_delay_again_straight_away(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+
+        $queue->reserve()?->release(Duration::milliseconds(0));
+
+        self::assertSame(2, $queue->reserve()?->attempt);
+    }
+
+    #[Test]
+    public function it_holds_back_a_delayed_message_until_its_delay_has_passed(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+
+        $queue->reserve()?->release(Duration::milliseconds(1500));
+
+        self::assertNull($queue->reserve());
+
+        $clock->advance('+1499 milliseconds');
+        self::assertNull($queue->reserve());
+
+        $clock->advance('+1 millisecond');
+        self::assertSame(2, $queue->reserve()?->attempt);
+    }
+
+    #[Test]
+    public function it_delivers_waiting_messages_while_a_delayed_one_is_held_back(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('delayed', 'one'));
+        $queue->reserve()?->release(Duration::minutes(1));
+        $queue->enqueue(new QueuedMessage('waiting', 'two'));
+
+        self::assertSame('waiting', $queue->reserve()?->message->type);
+        self::assertNull($queue->reserve());
+    }
+
+    #[Test]
+    public function it_delivers_available_messages_in_the_order_they_were_queued(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('first', 'one'));
+        $queue->enqueue(new QueuedMessage('second', 'two'));
+        $queue->reserve()?->release(Duration::seconds(10));
+        $queue->reserve()?->release(Duration::seconds(5));
+
+        $clock->advance('+10 seconds');
+
+        self::assertSame('first', $queue->reserve()?->message->type);
+        self::assertSame('second', $queue->reserve()?->message->type);
+    }
+
+    #[Test]
+    public function it_measures_a_delay_from_when_the_message_is_released(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $delivery = $queue->reserve();
+
+        $clock->advance('+1 hour');
+        $delivery?->release(Duration::seconds(30));
+
+        self::assertNull($queue->reserve());
+
+        $clock->advance('+30 seconds');
+        self::assertNotNull($queue->reserve());
+    }
+
+    #[Test]
+    public function it_holds_back_a_message_for_a_delay_of_years(): void
+    {
+        $clock = new TestClock();
+        $queue = new InMemoryQueue($clock->now(...));
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+
+        $queue->reserve()?->release(Duration::hours(24 * 365 * 1000));
+
+        $clock->advance('+999 years');
+        self::assertNull($queue->reserve());
+    }
+
+    #[Test]
+    public function it_uses_the_current_time_without_a_clock(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+
+        $queue->reserve()?->release(Duration::hours(1));
+
+        self::assertNull($queue->reserve());
     }
 }

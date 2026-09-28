@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace Dirthara\Queue\Driver\Memory;
 
+use Closure;
 use Throwable;
+use DateTimeImmutable;
 use Dirthara\Queue\QueuedMessage;
 use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
+use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\Exception\DeliveryAlreadySettledException;
 
-use function array_shift;
+use function intdiv;
+use function sprintf;
+use function array_splice;
 
 final class InMemoryQueue implements Queue
 {
@@ -24,6 +29,19 @@ final class InMemoryQueue implements Queue
      */
     public private(set) array $failed = [];
 
+    /**
+     * @var Closure(): DateTimeImmutable
+     */
+    private readonly Closure $now;
+
+    /**
+     * @param null|Closure(): DateTimeImmutable $now
+     */
+    public function __construct(?Closure $now = null)
+    {
+        $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
+    }
+
     public function enqueue(QueuedMessage $message): void
     {
         $this->pending[] = new QueueEntry($message);
@@ -31,14 +49,14 @@ final class InMemoryQueue implements Queue
 
     public function reserve(): ?Delivery
     {
-        $entry = array_shift($this->pending);
+        $entry = $this->takeAvailable(($this->now)());
 
         if ($entry === null) {
             return null;
         }
 
-        $release = function (QueueEntry $entry): void {
-            $this->pending[] = $entry->retry();
+        $release = function (QueueEntry $entry, ?Duration $delay): void {
+            $this->pending[] = $entry->retry(self::availableAfter(($this->now)(), $delay));
         };
 
         $fail = function (QueueEntry $entry, ?Throwable $failure): void {
@@ -61,7 +79,7 @@ final class InMemoryQueue implements Queue
             private bool $failed = false;
 
             /**
-             * @param callable(QueueEntry): void $release
+             * @param callable(QueueEntry, ?Duration): void $release
              * @param callable(QueueEntry, ?Throwable): void $fail
              */
             public function __construct(
@@ -83,13 +101,13 @@ final class InMemoryQueue implements Queue
             /**
              * @throws DeliveryAlreadySettledException
              */
-            public function release(): void
+            public function release(?Duration $duration = null): void
             {
                 $this->guardUnsettled();
 
                 $this->released = true;
 
-                ($this->release)($this->entry);
+                ($this->release)($this->entry, $duration);
             }
 
             /**
@@ -122,5 +140,33 @@ final class InMemoryQueue implements Queue
                 }
             }
         };
+    }
+
+    private function takeAvailable(DateTimeImmutable $now): ?QueueEntry
+    {
+        foreach ($this->pending as $index => $entry) {
+            if (!$entry->isAvailableAt($now)) {
+                continue;
+            }
+
+            array_splice($this->pending, $index, length: 1);
+
+            return $entry;
+        }
+
+        return null;
+    }
+
+    private static function availableAfter(DateTimeImmutable $now, ?Duration $delay): ?DateTimeImmutable
+    {
+        if ($delay === null || $delay->milliseconds === 0) {
+            return null;
+        }
+
+        return $now->modify(sprintf(
+            '+%d seconds +%d microseconds',
+            intdiv($delay->milliseconds, num2: 1000),
+            ($delay->milliseconds % 1000) * 1000,
+        ));
     }
 }

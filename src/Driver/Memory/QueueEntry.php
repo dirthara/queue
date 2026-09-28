@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dirthara\Queue\Driver\Memory;
 
+use DateTimeImmutable;
 use Dirthara\Queue\QueuedMessage;
 
 /**
@@ -14,10 +15,16 @@ final readonly class QueueEntry
     public function __construct(
         public QueuedMessage $message,
         public int $attempt = 1,
+        public ?DateTimeImmutable $availableAt = null,
     ) {}
 
-    public function retry(): self
+    public function retry(?DateTimeImmutable $availableAt = null): self
     {
-        return new self($this->message, $this->attempt + 1);
+        return new self($this->message, $this->attempt + 1, $availableAt);
+    }
+
+    public function isAvailableAt(DateTimeImmutable $now): bool
+    {
+        return $this->availableAt === null || $this->availableAt <= $now;
     }
 }
