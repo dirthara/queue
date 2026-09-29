@@ -15,7 +15,6 @@ use Dirthara\Queue\ValueObject\FailedMessage;
 use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Contract\FailedMessageRepository;
 use Dirthara\Queue\Exception\FailedMessageNotFoundException;
-use Dirthara\Queue\Exception\DeliveryAlreadySettledException;
 
 use function intdiv;
 use function bin2hex;
@@ -78,83 +77,7 @@ final class InMemoryQueue implements Queue, FailedMessageRepository
             );
         };
 
-        return new class($entry, $release, $fail) implements Delivery {
-            public QueuedMessage $message {
-                get => $this->entry->message;
-            }
-
-            public int $attempt {
-                get => $this->entry->attempt;
-            }
-
-            private bool $acknowledged = false;
-
-            private bool $released = false;
-
-            private bool $failed = false;
-
-            /**
-             * @param callable(QueueEntry, ?Duration): void $release
-             * @param callable(QueueEntry, ?Throwable): void $fail
-             */
-            public function __construct(
-                private readonly QueueEntry $entry,
-                private readonly mixed $release,
-                private readonly mixed $fail,
-            ) {}
-
-            /**
-             * @throws DeliveryAlreadySettledException
-             */
-            public function acknowledge(): void
-            {
-                $this->guardUnsettled();
-
-                $this->acknowledged = true;
-            }
-
-            /**
-             * @throws DeliveryAlreadySettledException
-             */
-            public function release(?Duration $duration = null): void
-            {
-                $this->guardUnsettled();
-
-                $this->released = true;
-
-                ($this->release)($this->entry, $duration);
-            }
-
-            /**
-             * @throws DeliveryAlreadySettledException
-             */
-            public function fail(?Throwable $throwable = null): void
-            {
-                $this->guardUnsettled();
-
-                $this->failed = true;
-
-                ($this->fail)($this->entry, $throwable);
-            }
-
-            /**
-             * @throws DeliveryAlreadySettledException
-             */
-            private function guardUnsettled(): void
-            {
-                if ($this->acknowledged) {
-                    throw DeliveryAlreadySettledException::alreadyAcknowledged($this->message->type);
-                }
-
-                if ($this->released) {
-                    throw DeliveryAlreadySettledException::alreadyReleased($this->message->type);
-                }
-
-                if ($this->failed) {
-                    throw DeliveryAlreadySettledException::alreadyFailed($this->message->type);
-                }
-            }
-        };
+        return new InMemoryDelivery($entry, $release, $fail);
     }
 
     /**

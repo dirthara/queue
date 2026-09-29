@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dirthara\Queue\Tests;
 
 use RuntimeException;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use Dirthara\Queue\Contract\Delivery;
 use PHPUnit\Framework\Attributes\Test;
@@ -691,5 +692,39 @@ final class InMemoryQueueTest extends TestCase
         $this->expectException(FailedMessageNotFoundException::class);
 
         $operation($queue, $id);
+    }
+
+    #[Test]
+    public function it_keeps_a_delivery_unsettled_when_releasing_it_fails(): void
+    {
+        $clock = new TestClock();
+        $outage = new class {
+            public bool $active = false;
+        };
+        $queue = new InMemoryQueue(static function () use ($clock, $outage): DateTimeImmutable {
+            if ($outage->active) {
+                throw new RuntimeException('The clock is unavailable.');
+            }
+
+            return $clock->now();
+        });
+        $queue->enqueue(new QueuedMessage('type', 'payload'));
+        $delivery = $queue->reserve();
+        self::assertNotNull($delivery);
+
+        $outage->active = true;
+
+        try {
+            $delivery->release();
+            self::fail('The release problem did not escape.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('The clock is unavailable.', $exception->getMessage());
+        }
+
+        $outage->active = false;
+        $delivery->release();
+
+        self::assertSame(2, $queue->reserve()?->attempt);
+        self::assertNull($queue->reserve());
     }
 }

@@ -23,8 +23,10 @@ queued `message` and the `attempt` it is, counted from 1, and is settled exactly
 | `release(?Duration $duration = null)` | Queueing it again as the next attempt, available straight away or after the duration. |
 | `fail(?Throwable $throwable = null)` | Removing it for good, recording why when the queue keeps failed messages. |
 
-The [worker](workers.md) settles every delivery it reserves, so application code rarely calls these itself. The
-in-memory queue throws a `DeliveryAlreadySettledException` when a delivery is settled a second time.
+The [worker](workers.md) settles every delivery it reserves, so application code rarely calls these itself. A delivery
+counts as settled only once its settlement has succeeded: when `acknowledge()`, `release()`, or `fail()` throws, the
+exception escapes and the delivery is still unsettled, so it can be settled again. The in-memory queue throws a
+`DeliveryAlreadySettledException` when a delivery that was settled successfully is settled a second time.
 
 ## The in-memory queue
 
