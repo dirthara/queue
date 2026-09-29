@@ -22,7 +22,9 @@ use Dirthara\Queue\ValueObject\WorkerResult;
 use Dirthara\Queue\Retry\AttemptsRetryPolicy;
 use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Retry\UnlimitedRetryPolicy;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
+use Dirthara\Queue\Tests\Fixtures\CountingQueue;
 use Dirthara\Queue\MessageExecutionPolicyRegistry;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
 use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
@@ -496,6 +498,131 @@ final class WorkerRunnerTest extends TestCase
         } catch (InvalidWorkerRunnerException $exception) {
             self::assertSame(['idleDelay' => 0], $exception->context);
         }
+    }
+
+    #[Test]
+    public function it_stops_without_sleeping_when_the_observer_stops_it_on_an_idle_result(): void
+    {
+        $queue = new CountingQueue(new InMemoryQueue());
+        $runner = null;
+        $observer = new RecordingWorkerObserver(static function (WorkerResult $result) use (&$runner): void {
+            $runner?->stop();
+        });
+        $runner = new WorkerRunner(
+            self::worker($queue, new MessageHandlerRegistry()),
+            Duration::seconds(1),
+            $observer,
+            sleep: self::unexpectedSleep(),
+        );
+
+        $runner->run();
+
+        self::assertSame([WorkerOutcome::Idle], self::outcomes($observer));
+        self::assertSame(1, $queue->reservations);
+    }
+
+    /**
+     * @return iterable<string, array{MessageHandlerRegistry, RetryPolicy, WorkerOutcome}>
+     */
+    public static function processedOutcomes(): iterable
+    {
+        $succeeding = new MessageHandlerRegistry();
+        $succeeding->register(SendWelcomeEmail::class, static function (object $message): void {});
+
+        $failing = new MessageHandlerRegistry();
+        $failing->register(SendWelcomeEmail::class, static function (object $message): void {
+            throw new RuntimeException('The mail server is unavailable.');
+        });
+
+        yield 'handled' => [$succeeding, new UnlimitedRetryPolicy(), WorkerOutcome::Handled];
+        yield 'released' => [$failing, new UnlimitedRetryPolicy(), WorkerOutcome::Released];
+        yield 'failed' => [$failing, new NeverRetryPolicy(), WorkerOutcome::Failed];
+    }
+
+    #[Test]
+    #[DataProvider('processedOutcomes')]
+    public function it_stops_without_reserving_again_when_the_observer_stops_it_on_a_processed_result(
+        MessageHandlerRegistry $handlers,
+        RetryPolicy $retryPolicy,
+        WorkerOutcome $outcome,
+    ): void {
+        $queue = new CountingQueue(new InMemoryQueue());
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'first@example.com'));
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'second@example.com'));
+
+        $runner = null;
+        $observer = new RecordingWorkerObserver(static function (WorkerResult $result) use (&$runner): void {
+            $runner?->stop();
+        });
+        $runner = new WorkerRunner(
+            self::worker($queue, $handlers, $retryPolicy),
+            Duration::seconds(1),
+            $observer,
+            sleep: self::unexpectedSleep(),
+        );
+
+        $runner->run();
+
+        self::assertSame([$outcome], self::outcomes($observer));
+        self::assertSame(1, $queue->reservations);
+        self::assertSame('second@example.com', $queue->reserve()?->message->payload);
+    }
+
+    #[Test]
+    public function it_runs_again_after_the_observer_stopped_it(): void
+    {
+        $queue = new CountingQueue(new InMemoryQueue());
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'first@example.com'));
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'second@example.com'));
+
+        $handled = [];
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use (&$handled): void {
+            $handled[] = $message;
+        });
+
+        $runner = null;
+        $observer = new RecordingWorkerObserver(static function (WorkerResult $result) use (&$runner): void {
+            $runner?->stop();
+        });
+        $runner = new WorkerRunner(
+            self::worker($queue, $handlers),
+            Duration::seconds(1),
+            $observer,
+            sleep: self::unexpectedSleep(),
+        );
+
+        $runner->run();
+        $runner->run();
+        $runner->run();
+
+        self::assertEquals(
+            [new SendWelcomeEmail('first@example.com'), new SendWelcomeEmail('second@example.com')],
+            $handled,
+        );
+        self::assertSame(
+            [WorkerOutcome::Handled, WorkerOutcome::Handled, WorkerOutcome::Idle],
+            self::outcomes($observer),
+        );
+        self::assertSame(3, $queue->reservations);
+    }
+
+    /**
+     * @return Closure(Duration): void
+     */
+    private static function unexpectedSleep(): Closure
+    {
+        return static function (Duration $duration): void {
+            throw new RuntimeException('The runner slept although it was stopped.');
+        };
+    }
+
+    /**
+     * @return list<WorkerOutcome>
+     */
+    private static function outcomes(RecordingWorkerObserver $observer): array
+    {
+        return array_map(static fn(WorkerResult $result): WorkerOutcome => $result->outcome, $observer->observed);
     }
 
     private static function worker(

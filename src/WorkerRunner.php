@@ -101,12 +101,17 @@ final class WorkerRunner
                 continue;
             }
 
-            if ($this->limitReached($startedAt, $processed)) {
+            if ($this->stopRequested() || $this->limitReached($startedAt, $processed)) {
                 continue;
             }
 
             ($this->sleep)($this->idleSleep($startedAt));
         }
+    }
+
+    private function stopRequested(): bool
+    {
+        return !$this->running;
     }
 
     private function limitReached(int $startedAt, int $processed): bool
