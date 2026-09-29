@@ -15,7 +15,7 @@ A `Queue` has two operations:
 | `reserve(): ?Delivery` | Takes the next available message off the queue, or returns `null` when none is available. |
 
 A reserved message is not delivered again while it is reserved. The `Delivery` that `reserve()` returns carries the
-queued `message` and the `attempt` it is, counted from 1, and is settled exactly once:
+queued `message` and the `attempt` it is, counted from 1, and is settled by one of these, once:
 
 | Method | Settles the delivery by |
 | --- | --- |
@@ -30,8 +30,9 @@ exception escapes and the delivery is still unsettled, so it can be settled agai
 
 ## Delivery guarantees
 
-The queue contracts do not promise that a message is processed exactly once. Assume a durable queue delivers each
-message at least once, unless its driver documents a stronger guarantee.
+The queue contract does not guarantee exactly-once processing, and it does not promise at-least-once delivery either:
+what happens to a reserved message when its process stops depends on the queue. Treat a durable queue, one that keeps
+its messages outside the process, as at-least-once unless its driver documents a stronger guarantee.
 
 Acknowledging a delivery is a separate step from the work its handler does, and a process can stop between the two:
 
@@ -42,9 +43,9 @@ the payment provider accepts the charge
     ↓
 the worker process crashes before acknowledge()
     ↓
-a durable queue makes the message available again
+a durable queue may make the message available again
     ↓
-a handler charges the card a second time
+a handler may charge the card a second time
 ```
 
 Settling queue messages cannot make an external effect such as a payment, an email, or a call to another service happen
@@ -62,8 +63,10 @@ the same process:
 
 - It delivers messages in the order they were enqueued or released, skipping any whose delay has not passed yet.
 - It keeps failed messages and implements `FailedMessageRepository`; see [failed messages](failed-messages.md).
-- Its messages are lost when the process ends, and other processes cannot see them. It therefore never delivers a
-  message again after a crash; within a running process, a message is delivered again only when it was released.
+- Its messages are lost when the process ends, and other processes cannot see them. When a process stops with a
+  message reserved but not acknowledged, that message is gone with it: the queue cannot deliver it again, because
+  nothing of the queue survives the process.
+- Within a running process, a released message is delivered again, so a retried message is handled more than once.
 
 It reads the current time whenever it needs it. For tests that control time, pass a closure that returns it:
 

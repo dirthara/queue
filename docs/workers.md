@@ -47,10 +47,17 @@ a metric label.
 
 ## Delivery guarantees
 
+The queue contract does not guarantee exactly-once processing. Treat a durable queue implementation as at-least-once
+unless its driver documents a stronger guarantee.
+
 A worker acknowledges a delivery only after its handler has returned. If the process stops in between, the handler's
-work has happened but the queue was never told, and a durable queue delivers the message again. Queues are therefore
-at-least-once: a handler whose work must not be repeated, such as charging a card, has to cope with receiving the same
-message twice. The `attempt` of a result counts queue deliveries, not how often the work took effect. See
+work has happened but the queue was never told, and a durable queue may deliver the message again. A handler whose work
+must not be repeated, such as charging a card, therefore has to cope with receiving the same message twice, for
+example with an idempotency key or by recording which messages it has completed. The in-memory queue cannot deliver a
+message again after its process stops, because its messages end with the process, but it does deliver a released
+message again while the process runs.
+
+The `attempt` of a result counts queue deliveries, not how often the work took effect. See
 [delivery guarantees](drivers.md#delivery-guarantees).
 
 ## Observing results
