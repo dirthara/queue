@@ -9,7 +9,7 @@ use RuntimeException;
 
 use function sprintf;
 
-final class MessageSerializationException extends RuntimeException implements QueueException
+final class MessageSerialisationException extends RuntimeException implements QueueException
 {
     use HasExceptionContext;
 
@@ -23,20 +23,20 @@ final class MessageSerializationException extends RuntimeException implements Qu
         $this->context = $context;
     }
 
-    public static function unableToSerialize(string $message, ?Throwable $previous = null): self
+    public static function unableToSerialise(string $message, ?Throwable $previous = null): self
     {
         return new self(
-            message: sprintf('Unable to serialize a message of type "%s".', self::printable($message)),
+            message: sprintf('Unable to serialise a message of type "%s".', self::printable($message)),
             previous: $previous,
             context: ['message' => self::printable($message)],
         );
     }
 
-    public static function unableToDeserialize(string $message, ?Throwable $previous = null): self
+    public static function unableToDeserialise(string $message, ?Throwable $previous = null): self
     {
         return new self(
             message: sprintf(
-                'Unable to deserialize a message of type "%s": the payload is malformed.',
+                'Unable to deserialise a message of type "%s": the payload is malformed.',
                 self::printable($message),
             ),
             previous: $previous,
@@ -48,7 +48,7 @@ final class MessageSerializationException extends RuntimeException implements Qu
     {
         return new self(
             message: sprintf(
-                'Unable to deserialize a message of type "%s": the payload holds %s, not an object.',
+                'Unable to deserialise a message of type "%s": the payload holds %s, not an object.',
                 self::printable($message),
                 self::printable($actual),
             ),
@@ -60,7 +60,7 @@ final class MessageSerializationException extends RuntimeException implements Qu
     {
         return new self(
             message: sprintf(
-                'Unable to deserialize a message of type "%s": the payload holds a "%s".',
+                'Unable to deserialise a message of type "%s": the payload holds a "%s".',
                 self::printable($message),
                 self::printable($actual),
             ),

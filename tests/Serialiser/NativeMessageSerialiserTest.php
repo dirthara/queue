@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Queue\Tests\Serializer;
+namespace Dirthara\Queue\Tests\Serialiser;
 
 use Error;
 use stdClass;
@@ -15,30 +15,30 @@ use Dirthara\Queue\Tests\Fixtures\Maintenance;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Dirthara\Queue\Tests\Fixtures\GenerateInvoice;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
-use Dirthara\Queue\Serializer\NativeMessageSerializer;
-use Dirthara\Queue\Exception\MessageSerializationException;
+use Dirthara\Queue\Serialiser\NativeMessageSerialiser;
+use Dirthara\Queue\Exception\MessageSerialisationException;
 
 use function serialize;
 use function set_error_handler;
 use function restore_error_handler;
 
-final class NativeMessageSerializerTest extends TestCase
+final class NativeMessageSerialiserTest extends TestCase
 {
     #[Test]
     public function it_records_the_exact_class_of_the_message_as_its_type(): void
     {
-        $queued = new NativeMessageSerializer()->serialize(new SendWelcomeEmail('ada@example.com'));
+        $queued = new NativeMessageSerialiser()->serialise(new SendWelcomeEmail('ada@example.com'));
 
         self::assertSame(SendWelcomeEmail::class, $queued->type);
         self::assertSame(serialize(new SendWelcomeEmail('ada@example.com')), $queued->payload);
     }
 
     #[Test]
-    public function it_restores_a_serialized_message(): void
+    public function it_restores_a_serialised_message(): void
     {
-        $serializer = new NativeMessageSerializer();
+        $serialiser = new NativeMessageSerialiser();
 
-        $message = $serializer->deserialize($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+        $message = $serialiser->deserialise($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
 
         self::assertEquals(new SendWelcomeEmail('ada@example.com'), $message);
     }
@@ -46,22 +46,22 @@ final class NativeMessageSerializerTest extends TestCase
     #[Test]
     public function it_restores_an_enum_case_as_the_same_case(): void
     {
-        $serializer = new NativeMessageSerializer();
+        $serialiser = new NativeMessageSerialiser();
 
-        $queued = $serializer->serialize(Maintenance::PurgeExpiredSessions);
+        $queued = $serialiser->serialise(Maintenance::PurgeExpiredSessions);
 
         self::assertSame(Maintenance::class, $queued->type);
-        self::assertSame(Maintenance::PurgeExpiredSessions, $serializer->deserialize($queued));
+        self::assertSame(Maintenance::PurgeExpiredSessions, $serialiser->deserialise($queued));
     }
 
     #[Test]
     public function it_restores_the_objects_a_message_holds(): void
     {
-        $serializer = new NativeMessageSerializer();
+        $serialiser = new NativeMessageSerialiser();
         $message = new stdClass();
         $message->sentAt = new DateTimeImmutable('2026-09-28 12:00:00');
 
-        $restored = $serializer->deserialize($serializer->serialize($message));
+        $restored = $serialiser->deserialise($serialiser->serialise($message));
 
         self::assertEquals($message, $restored);
         self::assertNotSame($message, $restored);
@@ -70,22 +70,22 @@ final class NativeMessageSerializerTest extends TestCase
     /**
      * @return iterable<string, array{object}>
      */
-    public static function unserializableMessages(): iterable
+    public static function unserialisableMessages(): iterable
     {
         yield 'a closure' => [static function (): void {}];
         yield 'an anonymous class' => [new class {}];
     }
 
     #[Test]
-    #[DataProvider('unserializableMessages')]
-    public function it_refuses_a_message_that_cannot_be_serialized(object $message): void
+    #[DataProvider('unserialisableMessages')]
+    public function it_refuses_a_message_that_cannot_be_serialised(object $message): void
     {
         try {
-            new NativeMessageSerializer()->serialize($message);
-            self::fail('A message that cannot be serialized was accepted.');
-        } catch (MessageSerializationException $exception) {
+            new NativeMessageSerialiser()->serialise($message);
+            self::fail('A message that cannot be serialised was accepted.');
+        } catch (MessageSerialisationException $exception) {
             self::assertNotNull($exception->getPrevious());
-            self::assertStringStartsWith('Unable to serialize a message of type', $exception->getMessage());
+            self::assertStringStartsWith('Unable to serialise a message of type', $exception->getMessage());
         }
     }
 
@@ -94,7 +94,7 @@ final class NativeMessageSerializerTest extends TestCase
      */
     public static function malformedPayloads(): iterable
     {
-        yield 'garbage' => ['not a serialized value'];
+        yield 'garbage' => ['not a serialised value'];
         yield 'an empty payload' => [''];
         yield 'a truncated payload' => [
             'O:48:"Dirthara\\Queue\\Tests\\Fixtures\\SendWelcomeEmail":1:{s:5:"email";s:15:"ada@',
@@ -107,11 +107,11 @@ final class NativeMessageSerializerTest extends TestCase
     public function it_refuses_a_malformed_payload(string $payload): void
     {
         try {
-            new NativeMessageSerializer()->deserialize(new QueuedMessage(SendWelcomeEmail::class, $payload));
+            new NativeMessageSerialiser()->deserialise(new QueuedMessage(SendWelcomeEmail::class, $payload));
             self::fail('A malformed payload was accepted.');
-        } catch (MessageSerializationException $exception) {
+        } catch (MessageSerialisationException $exception) {
             self::assertSame(
-                'Unable to deserialize a message of type "Dirthara\\Queue\\Tests\\Fixtures\\SendWelcomeEmail": the payload is malformed.',
+                'Unable to deserialise a message of type "Dirthara\\Queue\\Tests\\Fixtures\\SendWelcomeEmail": the payload is malformed.',
                 $exception->getMessage(),
             );
         }
@@ -124,9 +124,9 @@ final class NativeMessageSerializerTest extends TestCase
         set_error_handler($handler);
 
         try {
-            new NativeMessageSerializer()->deserialize(new QueuedMessage(SendWelcomeEmail::class, 'garbage'));
+            new NativeMessageSerialiser()->deserialise(new QueuedMessage(SendWelcomeEmail::class, 'garbage'));
             self::fail('A malformed payload was accepted.');
-        } catch (MessageSerializationException) {
+        } catch (MessageSerialisationException) {
             self::assertSame($handler, set_error_handler(null));
             restore_error_handler();
         } finally {
@@ -140,9 +140,9 @@ final class NativeMessageSerializerTest extends TestCase
         $payload = 'O:11:"ArrayObject":4:{i:0;i:0;i:1;i:5;i:2;a:0:{}i:3;N;}';
 
         try {
-            new NativeMessageSerializer()->deserialize(new QueuedMessage(ArrayObject::class, $payload));
+            new NativeMessageSerialiser()->deserialise(new QueuedMessage(ArrayObject::class, $payload));
             self::fail('An object that failed to restore was accepted.');
-        } catch (MessageSerializationException $exception) {
+        } catch (MessageSerialisationException $exception) {
             self::assertNotNull($exception->getPrevious());
             self::assertStringEndsWith('the payload is malformed.', $exception->getMessage());
         }
@@ -153,7 +153,7 @@ final class NativeMessageSerializerTest extends TestCase
     {
         $this->expectException(Error::class);
 
-        new NativeMessageSerializer()->deserialize(new QueuedMessage(
+        new NativeMessageSerialiser()->deserialise(new QueuedMessage(
             DateTimeImmutable::class,
             'O:17:"DateTimeImmutable":1:{s:4:"date";i:1;}',
         ));
@@ -176,9 +176,9 @@ final class NativeMessageSerializerTest extends TestCase
     public function it_refuses_a_payload_that_is_not_an_object(string $payload, string $actual): void
     {
         try {
-            new NativeMessageSerializer()->deserialize(new QueuedMessage(SendWelcomeEmail::class, $payload));
+            new NativeMessageSerialiser()->deserialise(new QueuedMessage(SendWelcomeEmail::class, $payload));
             self::fail('A payload that is not an object was accepted.');
-        } catch (MessageSerializationException $exception) {
+        } catch (MessageSerialisationException $exception) {
             self::assertSame(['message' => SendWelcomeEmail::class, 'actual' => $actual], $exception->context);
         }
     }
@@ -189,9 +189,9 @@ final class NativeMessageSerializerTest extends TestCase
         $payload = serialize(new GenerateInvoice('INV-1'));
 
         try {
-            new NativeMessageSerializer()->deserialize(new QueuedMessage(SendWelcomeEmail::class, $payload));
+            new NativeMessageSerialiser()->deserialise(new QueuedMessage(SendWelcomeEmail::class, $payload));
             self::fail('A payload of another type was accepted.');
-        } catch (MessageSerializationException $exception) {
+        } catch (MessageSerialisationException $exception) {
             self::assertSame(
                 ['message' => SendWelcomeEmail::class, 'actual' => GenerateInvoice::class],
                 $exception->context,
@@ -203,9 +203,9 @@ final class NativeMessageSerializerTest extends TestCase
     public function it_refuses_a_payload_whose_class_does_not_exist(): void
     {
         try {
-            new NativeMessageSerializer()->deserialize(new QueuedMessage('App\\Removed', 'O:11:"App\\Removed":0:{}'));
+            new NativeMessageSerialiser()->deserialise(new QueuedMessage('App\\Removed', 'O:11:"App\\Removed":0:{}'));
             self::fail('A payload of a class that does not exist was accepted.');
-        } catch (MessageSerializationException $exception) {
+        } catch (MessageSerialisationException $exception) {
             self::assertSame(['message' => 'App\\Removed', 'actual' => '__PHP_Incomplete_Class'], $exception->context);
         }
     }
@@ -216,9 +216,9 @@ final class NativeMessageSerializerTest extends TestCase
         $payload = serialize(new GenerateInvoice('secret-invoice-reference'));
 
         try {
-            new NativeMessageSerializer()->deserialize(new QueuedMessage(SendWelcomeEmail::class, $payload . 'x'));
+            new NativeMessageSerialiser()->deserialise(new QueuedMessage(SendWelcomeEmail::class, $payload . 'x'));
             self::fail('A malformed payload was accepted.');
-        } catch (MessageSerializationException $exception) {
+        } catch (MessageSerialisationException $exception) {
             self::assertStringNotContainsString('secret-invoice-reference', $exception->getMessage());
         }
     }

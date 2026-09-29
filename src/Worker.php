@@ -8,7 +8,7 @@ use Throwable;
 use Dirthara\Queue\Contract\Queue;
 use Dirthara\Queue\Contract\Delivery;
 use Dirthara\Queue\ValueObject\WorkerResult;
-use Dirthara\Queue\Contract\MessageSerializer;
+use Dirthara\Queue\Contract\MessageSerialiser;
 use Dirthara\Queue\Contract\MessageHandlerProvider;
 use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
 use Dirthara\Queue\Contract\MessageExecutionPolicyProvider;
@@ -17,7 +17,7 @@ final readonly class Worker
 {
     public function __construct(
         private Queue $queue,
-        private MessageSerializer $serializer,
+        private MessageSerialiser $serialiser,
         private MessageHandlerProvider $handlers,
         private MessageExecutionPolicyProvider $executionPolicies,
     ) {}
@@ -36,7 +36,7 @@ final readonly class Worker
         $policy = $this->executionPolicies->default;
 
         try {
-            $message = $this->serializer->deserialize($delivery->message);
+            $message = $this->serialiser->deserialise($delivery->message);
             $policy = $this->executionPolicies->policyFor($message);
             $handler = $this->handlers->handlerFor($message);
 

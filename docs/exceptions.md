@@ -38,7 +38,7 @@ These are thrown while an application is being set up, and point to a mistake in
 
 | Exception | Extends | Thrown when |
 | --- | --- | --- |
-| `MessageSerializationException` | `RuntimeException` | A message cannot be serialized, or a payload cannot be deserialized into the message type it records. |
+| `MessageSerialisationException` | `RuntimeException` | A message cannot be serialised, or a payload cannot be deserialised into the message type it records. |
 | `MessageHandlerNotFoundException` | `RuntimeException` | A message's type has no handler. |
 | `QueueDriverNotFoundException` | `RuntimeException` | A queue is created with, or a driver asked for, a name without a driver. |
 | `FailedMessageNotFoundException` | `RuntimeException` | A failed message is retried or forgotten by an id that no failed message has. |
@@ -46,6 +46,6 @@ These are thrown while an application is being set up, and point to a mistake in
 | `WorkerAlreadyRunningException` | `RuntimeException` | `run()` is called on a runner that is already running. |
 | `InvalidWorkerResultException` | `InvalidArgumentException` | A handled or failed `WorkerResult` is created for an attempt below 1, which points to a queue driver counting attempts wrongly. |
 
-A worker does not let a failure to deserialize or handle a message escape: it settles the delivery and reports the
+A worker does not let a failure to deserialise or handle a message escape: it settles the delivery and reports the
 failure in its [result](workers.md#worker-results). What escapes a worker is a failure of the queue itself, such as a
 delivery that cannot be settled, and those exceptions come from the queue driver.

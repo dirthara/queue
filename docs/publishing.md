@@ -7,12 +7,12 @@ description: Put messages on a queue, now or after a delay, and route message ty
 
 ## Publish a message
 
-`QueuedMessagePublisher` serializes a message with a `MessageSerializer` and enqueues the result:
+`QueuedMessagePublisher` serialises a message with a `MessageSerialiser` and enqueues the result:
 
 ```php
 use Dirthara\Queue\QueuedMessagePublisher;
 
-$publisher = new QueuedMessagePublisher($queue, $serializer);
+$publisher = new QueuedMessagePublisher($queue, $serialiser);
 
 $publisher->publish(new SendWelcomeEmail('ada@example.com'));
 ```
@@ -62,8 +62,8 @@ all:
 use Dirthara\Messaging\RoutingMessagePublisher;
 use Dirthara\Queue\QueuedMessagePublisher;
 
-$mailQueue = new QueuedMessagePublisher($queueFactory->create($mailConfiguration), $serializer);
-$billingQueue = new QueuedMessagePublisher($queueFactory->create($billingConfiguration), $serializer);
+$mailQueue = new QueuedMessagePublisher($queueFactory->create($mailConfiguration), $serialiser);
+$billingQueue = new QueuedMessagePublisher($queueFactory->create($billingConfiguration), $serialiser);
 
 $publisher = new RoutingMessagePublisher();
 $publisher->route(SendWelcomeEmail::class, $mailQueue);
@@ -75,5 +75,5 @@ its queue. See [queues and drivers](drivers.md) for creating queues from configu
 
 ## When publishing fails
 
-A message the serializer cannot serialize, such as a closure or an object of an anonymous class with
-`NativeMessageSerializer`, throws a `MessageSerializationException`, and nothing is enqueued.
+A message the serialiser cannot serialise, such as a closure or an object of an anonymous class with
+`NativeMessageSerialiser`, throws a `MessageSerialisationException`, and nothing is enqueued.

@@ -31,7 +31,7 @@ failed message has that id. Each is a `FailedMessage`:
 | Property | Type | Holds |
 | --- | --- | --- |
 | `id` | `string` | The identifier to retry or forget it by. |
-| `message` | `QueuedMessage` | The message as it was queued: its type and serialized payload. |
+| `message` | `QueuedMessage` | The message as it was queued: its type and serialised payload. |
 | `attempt` | `int` | The attempt that failed, counted from 1. |
 | `failure` | `?Failure` | A summary of why it failed, or `null` when it was failed without one. |
 

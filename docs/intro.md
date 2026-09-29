@@ -6,7 +6,7 @@ description: Transport-neutral message queues and workers for PHP and the Dirtha
 ---
 
 Dirthara Queue hands messages to a queue and processes them later in a worker. A message is a plain PHP object: the
-package serializes it onto a queue, and a worker takes it off again, passes it to the handler registered for its exact
+package serialises it onto a queue, and a worker takes it off again, passes it to the handler registered for its exact
 class, and decides, when handling fails, whether to retry it, how long to wait first, or to fail it for good.
 
 The package is transport-neutral. Its contracts describe a queue, a delivery, and a queue driver without assuming a
@@ -15,24 +15,24 @@ a single PHP process.
 
 | Piece | Does | Read |
 | --- | --- | --- |
-| `QueuedMessagePublisher` | Serializes a message onto a queue, now or after a delay | [Publishing](publishing.md) |
+| `QueuedMessagePublisher` | Serialises a message onto a queue, now or after a delay | [Publishing](publishing.md) |
 | `MessageHandlerRegistry` | Maps each exact message class to the callable that processes it | [Handlers](handlers.md) |
 | `MessageExecutionPolicyRegistry` | Chooses the retry and backoff behaviour per exact message class | [Execution policies](execution-policies.md) |
 | `Worker` and `WorkerRunner` | Process one delivery, or keep processing until stopped or limited | [Workers](workers.md) |
 | `FailedMessageRepository` | Lists, retries, and forgets messages that failed for good | [Failed messages](failed-messages.md) |
 | `QueueDriverRegistry` | Creates a queue from a named driver and its configuration | [Queues and drivers](drivers.md) |
-| `NativeMessageSerializer` | Turns a message into a payload and back | [Serialization](serialization.md) |
+| `NativeMessageSerialiser` | Turns a message into a payload and back | [Serialisation](serialisation.md) |
 
 ```php
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\MessageHandlerRegistry;
 use Dirthara\Queue\QueuedMessagePublisher;
-use Dirthara\Queue\Serializer\NativeMessageSerializer;
+use Dirthara\Queue\Serialiser\NativeMessageSerialiser;
 
 $queue = new InMemoryQueue();
-$serializer = new NativeMessageSerializer();
+$serialiser = new NativeMessageSerialiser();
 
-$publisher = new QueuedMessagePublisher($queue, $serializer);
+$publisher = new QueuedMessagePublisher($queue, $serialiser);
 $publisher->publish(new SendWelcomeEmail('ada@example.com'));
 
 $handlers = new MessageHandlerRegistry();

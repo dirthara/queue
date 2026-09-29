@@ -6,20 +6,20 @@ namespace Dirthara\Queue\Tests\Fixtures;
 
 use RuntimeException;
 use Dirthara\Queue\ValueObject\QueuedMessage;
-use Dirthara\Queue\Contract\MessageSerializer;
+use Dirthara\Queue\Contract\MessageSerialiser;
 
-final class SendWelcomeEmailSerializer implements MessageSerializer
+final class SendWelcomeEmailSerialiser implements MessageSerialiser
 {
-    public function serialize(object $message): QueuedMessage
+    public function serialise(object $message): QueuedMessage
     {
         if (!$message instanceof SendWelcomeEmail) {
-            throw new RuntimeException('The fixture serializer only serializes SendWelcomeEmail.');
+            throw new RuntimeException('The fixture serialiser only serialises SendWelcomeEmail.');
         }
 
         return new QueuedMessage(SendWelcomeEmail::class, $message->email);
     }
 
-    public function deserialize(QueuedMessage $message): object
+    public function deserialise(QueuedMessage $message): object
     {
         return new SendWelcomeEmail($message->payload);
     }

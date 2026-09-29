@@ -20,7 +20,7 @@ $handlers->register(SendWelcomeEmail::class, static function (SendWelcomeEmail $
 $handlers->register(GenerateInvoice::class, $invoices->generate(...));
 ```
 
-A handler receives the deserialized message and returns nothing. It knows nothing about queues, attempts, retries, or
+A handler receives the deserialised message and returns nothing. It knows nothing about queues, attempts, retries, or
 delays: whether a failure is retried is decided by the message's [execution policy](execution-policies.md). A handler
 reports failure by throwing.
 

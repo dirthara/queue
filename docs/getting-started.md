@@ -5,7 +5,7 @@ sidebar_position: 3
 description: Publish a message onto a queue and process it with a worker, from start to finish.
 ---
 
-This page wires every piece together: a queue, a serializer, a publisher, handlers, execution policies, and a worker.
+This page wires every piece together: a queue, a serialiser, a publisher, handlers, execution policies, and a worker.
 Each piece has its own page with the details.
 
 ## 1. A message
@@ -21,19 +21,19 @@ final readonly class SendWelcomeEmail
 }
 ```
 
-## 2. A queue and a serializer
+## 2. A queue and a serialiser
 
 ```php
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
-use Dirthara\Queue\Serializer\NativeMessageSerializer;
+use Dirthara\Queue\Serialiser\NativeMessageSerialiser;
 
 $queue = new InMemoryQueue();
-$serializer = new NativeMessageSerializer();
+$serialiser = new NativeMessageSerialiser();
 ```
 
 `InMemoryQueue` keeps its messages in the PHP process, which suits tests and work that is processed within one
-process. See [queues and drivers](drivers.md). `NativeMessageSerializer` uses PHP's own serialization; read
-[serialization](serialization.md) before using it with a queue that anything else can write to.
+process. See [queues and drivers](drivers.md). `NativeMessageSerialiser` uses PHP's own serialisation; read
+[serialisation](serialisation.md) before using it with a queue that anything else can write to.
 
 ## 3. Publish
 
@@ -41,7 +41,7 @@ process. See [queues and drivers](drivers.md). `NativeMessageSerializer` uses PH
 use Dirthara\Queue\QueuedMessagePublisher;
 use Dirthara\Queue\ValueObject\Duration;
 
-$publisher = new QueuedMessagePublisher($queue, $serializer);
+$publisher = new QueuedMessagePublisher($queue, $serialiser);
 
 $publisher->publish(new SendWelcomeEmail('ada@example.com'));
 $publisher->publishAfter(new SendWelcomeEmail('grace@example.com'), Duration::minutes(10));
@@ -81,7 +81,7 @@ use Dirthara\Queue\WorkerRunner;
 
 $worker = new Worker(
     queue: $queue,
-    serializer: $serializer,
+    serialiser: $serialiser,
     handlers: $handlers,
     executionPolicies: $policies,
 );

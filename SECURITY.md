@@ -22,7 +22,7 @@ advisory crediting the reporter unless they prefer otherwise.
 
 ## Scope
 
-The package queues serialized messages, delivers them to a worker, and
+The package queues serialised messages, delivers them to a worker, and
 settles each delivery by the message's execution policy. In scope are flaws in
 that behaviour and in the package's development configuration, such as:
 
@@ -39,12 +39,12 @@ that behaviour and in the package's development configuration, such as:
 
 Out of scope:
 
-- **Forged payloads with `NativeMessageSerializer`.** The serializer restores
+- **Forged payloads with `NativeMessageSerialiser`.** The serialiser restores
   any class a payload names, by design, and is only safe on a queue that
   nothing untrusted can write to. Object injection through a payload written by
   someone with write access to the queue is not a vulnerability in this
   package; see
-  [serialization](https://github.com/dirthara/queue/blob/0.1/docs/serialization.md).
+  [serialisation](https://github.com/dirthara/queue/blob/0.1/docs/serialisation.md).
 - **Data kept with failed messages.** A failed message keeps its payload and
   the failure's exception message as they are; protecting that data is the
   application's responsibility.

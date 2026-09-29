@@ -33,7 +33,7 @@ Every call to `runOnce()` returns a `WorkerResult` with one of three outcomes:
 
 A failed result means the failure was settled according to the message's
 [execution policy](execution-policies.md): the delivery was released for a retry or failed for good. A result carries
-the queued message as it was stored, never the deserialized message object. When settling a delivery itself fails,
+the queued message as it was stored, never the deserialised message object. When settling a delivery itself fails,
 because the queue cannot acknowledge, release, or fail it, the exception escapes the worker instead of becoming a
 result.
 

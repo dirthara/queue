@@ -8,14 +8,14 @@ use RuntimeException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\Exception\QueueException;
-use Dirthara\Queue\Exception\MessageSerializationException;
+use Dirthara\Queue\Exception\MessageSerialisationException;
 
-final class MessageSerializationExceptionTest extends TestCase
+final class MessageSerialisationExceptionTest extends TestCase
 {
     #[Test]
     public function it_carries_nothing_by_default(): void
     {
-        $exception = new MessageSerializationException();
+        $exception = new MessageSerialisationException();
 
         self::assertInstanceOf(QueueException::class, $exception);
         self::assertInstanceOf(RuntimeException::class, $exception);
@@ -29,7 +29,7 @@ final class MessageSerializationExceptionTest extends TestCase
     public function it_keeps_a_previous_exception_and_its_context(): void
     {
         $previous = new RuntimeException('cause');
-        $exception = new MessageSerializationException('message', 3, $previous, ['message' => 'Missing']);
+        $exception = new MessageSerialisationException('message', 3, $previous, ['message' => 'Missing']);
 
         self::assertSame('message', $exception->getMessage());
         self::assertSame(3, $exception->getCode());
@@ -40,22 +40,22 @@ final class MessageSerializationExceptionTest extends TestCase
     #[Test]
     public function it_merges_what_is_added_to_its_context(): void
     {
-        $exception = new MessageSerializationException(context: ['message' => 'Missing', 'kept' => true]);
+        $exception = new MessageSerialisationException(context: ['message' => 'Missing', 'kept' => true]);
 
         self::assertSame($exception, $exception->addContext(['message' => 'Replaced', 'queue' => 'default']));
         self::assertSame(['message' => 'Replaced', 'kept' => true, 'queue' => 'default'], $exception->context);
     }
 
     #[Test]
-    public function it_describes_a_message_that_cannot_be_serialized(): void
+    public function it_describes_a_message_that_cannot_be_serialised(): void
     {
-        $exception = MessageSerializationException::unableToSerialize(
+        $exception = MessageSerialisationException::unableToSerialise(
             "class@anonymous\0/app/src/Job.php:3$0",
             $previous = new RuntimeException('cause'),
         );
 
         self::assertSame(
-            'Unable to serialize a message of type "class@anonymous\\000/app/src/Job.php:3$0".',
+            'Unable to serialise a message of type "class@anonymous\\000/app/src/Job.php:3$0".',
             $exception->getMessage(),
         );
         self::assertSame(['message' => 'class@anonymous\\000/app/src/Job.php:3$0'], $exception->context);
@@ -65,10 +65,10 @@ final class MessageSerializationExceptionTest extends TestCase
     #[Test]
     public function it_describes_a_malformed_payload(): void
     {
-        $exception = MessageSerializationException::unableToDeserialize("class@anonymous\0/app/src/Job.php:3$0");
+        $exception = MessageSerialisationException::unableToDeserialise("class@anonymous\0/app/src/Job.php:3$0");
 
         self::assertSame(
-            'Unable to deserialize a message of type "class@anonymous\\000/app/src/Job.php:3$0": the payload is malformed.',
+            'Unable to deserialise a message of type "class@anonymous\\000/app/src/Job.php:3$0": the payload is malformed.',
             $exception->getMessage(),
         );
         self::assertSame(['message' => 'class@anonymous\\000/app/src/Job.php:3$0'], $exception->context);
@@ -78,10 +78,10 @@ final class MessageSerializationExceptionTest extends TestCase
     #[Test]
     public function it_describes_a_payload_that_is_not_an_object(): void
     {
-        $exception = MessageSerializationException::notAnObject("class@anonymous\0/app/src/Job.php:3$0", 'int');
+        $exception = MessageSerialisationException::notAnObject("class@anonymous\0/app/src/Job.php:3$0", 'int');
 
         self::assertSame(
-            'Unable to deserialize a message of type "class@anonymous\\000/app/src/Job.php:3$0": the payload holds int, not an object.',
+            'Unable to deserialise a message of type "class@anonymous\\000/app/src/Job.php:3$0": the payload holds int, not an object.',
             $exception->getMessage(),
         );
         self::assertSame(
@@ -94,13 +94,13 @@ final class MessageSerializationExceptionTest extends TestCase
     #[Test]
     public function it_describes_a_payload_of_another_type(): void
     {
-        $exception = MessageSerializationException::typeMismatch(
+        $exception = MessageSerialisationException::typeMismatch(
             "class@anonymous\0/app/src/Job.php:3$0",
             "App\\Other\n",
         );
 
         self::assertSame(
-            'Unable to deserialize a message of type "class@anonymous\\000/app/src/Job.php:3$0": the payload holds a "App\\Other\\n".',
+            'Unable to deserialise a message of type "class@anonymous\\000/app/src/Job.php:3$0": the payload holds a "App\\Other\\n".',
             $exception->getMessage(),
         );
         self::assertSame(

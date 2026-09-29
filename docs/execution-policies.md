@@ -85,7 +85,7 @@ $policies->register(ChargePayment::class, new MessageExecutionPolicy(
 
 $worker = new Worker(
     queue: $queue,
-    serializer: $serializer,
+    serialiser: $serialiser,
     handlers: $handlers,
     executionPolicies: $policies,
 );
@@ -105,15 +105,15 @@ policies.
 
 ## Which policy settles a failure
 
-A worker resolves the policy for a message as soon as the message has been deserialized, so the policy of the message
+A worker resolves the policy for a message as soon as the message has been deserialised, so the policy of the message
 type settles every failure from that point on:
 
 | Failure | Settled with |
 | --- | --- |
-| The payload cannot be deserialized | The default policy |
+| The payload cannot be deserialised | The default policy |
 | No handler is registered for the message type | The policy for the message type |
 | The handler fails | The policy for the message type |
 
-A payload that cannot be deserialized has no message, and so no message type to look a policy up for. The worker settles
+A payload that cannot be deserialised has no message, and so no message type to look a policy up for. The worker settles
 it with the default policy rather than guessing a type from the payload. Choose the default with that in mind: a
 default of `UnlimitedRetryPolicy` retries such a payload for as long as it keeps failing.

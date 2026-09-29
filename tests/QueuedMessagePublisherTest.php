@@ -14,17 +14,17 @@ use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Messaging\Contract\MessagePublisher;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
 use Dirthara\Queue\Contract\DelayedMessagePublisher;
-use Dirthara\Queue\Serializer\NativeMessageSerializer;
-use Dirthara\Queue\Exception\MessageSerializationException;
-use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerializer;
+use Dirthara\Queue\Serialiser\NativeMessageSerialiser;
+use Dirthara\Queue\Exception\MessageSerialisationException;
+use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerialiser;
 
 final class QueuedMessagePublisherTest extends TestCase
 {
     #[Test]
-    public function it_enqueues_the_serialized_message(): void
+    public function it_enqueues_the_serialised_message(): void
     {
         $queue = new InMemoryQueue();
-        $publisher = new QueuedMessagePublisher($queue, new SendWelcomeEmailSerializer());
+        $publisher = new QueuedMessagePublisher($queue, new SendWelcomeEmailSerialiser());
 
         $publisher->publish(new SendWelcomeEmail('ada@example.com'));
 
@@ -39,7 +39,7 @@ final class QueuedMessagePublisherTest extends TestCase
     #[Test]
     public function it_is_a_message_publisher_that_can_delay(): void
     {
-        $publisher = new QueuedMessagePublisher(new InMemoryQueue(), new SendWelcomeEmailSerializer());
+        $publisher = new QueuedMessagePublisher(new InMemoryQueue(), new SendWelcomeEmailSerialiser());
 
         self::assertInstanceOf(MessagePublisher::class, $publisher);
         self::assertInstanceOf(DelayedMessagePublisher::class, $publisher);
@@ -51,7 +51,7 @@ final class QueuedMessagePublisherTest extends TestCase
         $clock = new TestClock();
         $queue = new InMemoryQueue($clock->now(...));
 
-        new QueuedMessagePublisher($queue, new SendWelcomeEmailSerializer())->publish(
+        new QueuedMessagePublisher($queue, new SendWelcomeEmailSerialiser())->publish(
             new SendWelcomeEmail('ada@example.com'),
         );
 
@@ -63,7 +63,7 @@ final class QueuedMessagePublisherTest extends TestCase
     {
         $clock = new TestClock();
         $queue = new InMemoryQueue($clock->now(...));
-        $publisher = new QueuedMessagePublisher($queue, new SendWelcomeEmailSerializer());
+        $publisher = new QueuedMessagePublisher($queue, new SendWelcomeEmailSerialiser());
 
         $publisher->publishAfter(new SendWelcomeEmail('ada@example.com'), Duration::minutes(10));
 
@@ -87,7 +87,7 @@ final class QueuedMessagePublisherTest extends TestCase
         $clock = new TestClock();
         $queue = new InMemoryQueue($clock->now(...));
 
-        new QueuedMessagePublisher($queue, new SendWelcomeEmailSerializer())->publishAfter(
+        new QueuedMessagePublisher($queue, new SendWelcomeEmailSerialiser())->publishAfter(
             new SendWelcomeEmail('ada@example.com'),
             Duration::milliseconds(0),
         );
@@ -100,7 +100,7 @@ final class QueuedMessagePublisherTest extends TestCase
     {
         $clock = new TestClock();
         $queue = new InMemoryQueue($clock->now(...));
-        $publisher = new QueuedMessagePublisher($queue, new SendWelcomeEmailSerializer());
+        $publisher = new QueuedMessagePublisher($queue, new SendWelcomeEmailSerialiser());
 
         $publisher->publishAfter(new SendWelcomeEmail('later@example.com'), Duration::seconds(30));
         $publisher->publish(new SendWelcomeEmail('now@example.com'));
@@ -130,16 +130,16 @@ final class QueuedMessagePublisherTest extends TestCase
      */
     #[Test]
     #[DataProvider('publications')]
-    public function it_enqueues_nothing_when_the_message_cannot_be_serialized(callable $publish): void
+    public function it_enqueues_nothing_when_the_message_cannot_be_serialised(callable $publish): void
     {
         $clock = new TestClock();
         $queue = new InMemoryQueue($clock->now(...));
-        $publisher = new QueuedMessagePublisher($queue, new NativeMessageSerializer());
+        $publisher = new QueuedMessagePublisher($queue, new NativeMessageSerialiser());
 
         try {
             $publish($publisher, static function (): void {});
-            self::fail('A message that cannot be serialized was published.');
-        } catch (MessageSerializationException) {
+            self::fail('A message that cannot be serialised was published.');
+        } catch (MessageSerialisationException) {
             $clock->advance('+1 minute');
             self::assertNull($queue->reserve());
         }

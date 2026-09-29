@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Dirthara\Queue\Serializer;
+namespace Dirthara\Queue\Serialiser;
 
 use Exception;
 use Dirthara\Queue\ValueObject\QueuedMessage;
-use Dirthara\Queue\Contract\MessageSerializer;
-use Dirthara\Queue\Exception\MessageSerializationException;
+use Dirthara\Queue\Contract\MessageSerialiser;
+use Dirthara\Queue\Exception\MessageSerialisationException;
 
 use function is_object;
 use function serialize;
@@ -16,29 +16,29 @@ use function get_debug_type;
 use function set_error_handler;
 use function restore_error_handler;
 
-final readonly class NativeMessageSerializer implements MessageSerializer
+final readonly class NativeMessageSerialiser implements MessageSerialiser
 {
     /**
-     * @throws MessageSerializationException
+     * @throws MessageSerialisationException
      */
-    public function serialize(object $message): QueuedMessage
+    public function serialise(object $message): QueuedMessage
     {
         try {
             $payload = serialize($message);
         } catch (Exception $exception) {
-            throw MessageSerializationException::unableToSerialize($message::class, $exception);
+            throw MessageSerialisationException::unableToSerialise($message::class, $exception);
         }
 
         return new QueuedMessage(type: $message::class, payload: $payload);
     }
 
     /**
-     * @throws MessageSerializationException
+     * @throws MessageSerialisationException
      */
-    public function deserialize(QueuedMessage $message): object
+    public function deserialise(QueuedMessage $message): object
     {
         if ($message->payload === '') {
-            throw MessageSerializationException::unableToDeserialize($message->type);
+            throw MessageSerialisationException::unableToDeserialise($message->type);
         }
 
         $malformed = false;
@@ -53,21 +53,21 @@ final readonly class NativeMessageSerializer implements MessageSerializer
             // @mago-expect analysis:mixed-assignment A payload can hold any value, which the checks below narrow
             $value = unserialize($message->payload, ['allowed_classes' => true]);
         } catch (Exception $exception) {
-            throw MessageSerializationException::unableToDeserialize($message->type, $exception);
+            throw MessageSerialisationException::unableToDeserialise($message->type, $exception);
         } finally {
             restore_error_handler();
         }
 
         if ($malformed) {
-            throw MessageSerializationException::unableToDeserialize($message->type);
+            throw MessageSerialisationException::unableToDeserialise($message->type);
         }
 
         if (!is_object($value)) {
-            throw MessageSerializationException::notAnObject($message->type, get_debug_type($value));
+            throw MessageSerialisationException::notAnObject($message->type, get_debug_type($value));
         }
 
         if ($value::class !== $message->type) {
-            throw MessageSerializationException::typeMismatch($message->type, $value::class);
+            throw MessageSerialisationException::typeMismatch($message->type, $value::class);
         }
 
         return $value;

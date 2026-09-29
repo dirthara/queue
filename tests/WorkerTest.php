@@ -22,20 +22,20 @@ use Dirthara\Queue\Tests\Fixtures\TestClock;
 use Dirthara\Queue\Retry\AttemptsRetryPolicy;
 use Dirthara\Queue\ValueObject\QueuedMessage;
 use Dirthara\Queue\Backoff\FixedBackoffPolicy;
-use Dirthara\Queue\Contract\MessageSerializer;
+use Dirthara\Queue\Contract\MessageSerialiser;
 use Dirthara\Queue\Retry\UnlimitedRetryPolicy;
 use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\MessageExecutionPolicyRegistry;
 use Dirthara\Queue\Tests\Fixtures\GenerateInvoice;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
-use Dirthara\Queue\Serializer\NativeMessageSerializer;
+use Dirthara\Queue\Serialiser\NativeMessageSerialiser;
 use Dirthara\Queue\Tests\Fixtures\SingleDeliveryQueue;
 use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
 use Dirthara\Queue\Tests\Fixtures\RecordingRetryPolicy;
 use Dirthara\Queue\Tests\Fixtures\RecordingBackoffPolicy;
-use Dirthara\Queue\Exception\MessageSerializationException;
+use Dirthara\Queue\Exception\MessageSerialisationException;
 use Dirthara\Queue\Exception\MessageHandlerNotFoundException;
-use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerializer;
+use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerialiser;
 use Dirthara\Queue\Tests\Fixtures\RecordingExecutionPolicyProvider;
 
 use function count;
@@ -52,7 +52,7 @@ final class WorkerTest extends TestCase
     }
 
     #[Test]
-    public function it_hands_the_deserialized_message_to_its_handler_and_acknowledges_it(): void
+    public function it_hands_the_deserialised_message_to_its_handler_and_acknowledges_it(): void
     {
         $queue = new InMemoryQueue();
         $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'));
@@ -102,10 +102,10 @@ final class WorkerTest extends TestCase
     }
 
     #[Test]
-    public function it_reports_a_message_it_cannot_deserialize_as_a_failure_without_handling_it(): void
+    public function it_reports_a_message_it_cannot_deserialise_as_a_failure_without_handling_it(): void
     {
         $queue = new InMemoryQueue();
-        $message = new QueuedMessage(SendWelcomeEmail::class, 'not a serialized value');
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'not a serialised value');
         $queue->enqueue($message);
 
         $handled = false;
@@ -114,20 +114,20 @@ final class WorkerTest extends TestCase
             $handled = true;
         });
 
-        $result = self::worker($queue, $handlers, serializer: new NativeMessageSerializer())->runOnce();
+        $result = self::worker($queue, $handlers, serialiser: new NativeMessageSerialiser())->runOnce();
 
         self::assertSame(WorkerOutcome::Failed, $result->outcome);
-        self::assertInstanceOf(MessageSerializationException::class, $result->failure);
+        self::assertInstanceOf(MessageSerialisationException::class, $result->failure);
         self::assertFalse($handled);
         self::assertSame($message, $queue->reserve()?->message);
     }
 
     #[Test]
-    public function it_hands_a_natively_serialized_message_to_its_handler(): void
+    public function it_hands_a_natively_serialised_message_to_its_handler(): void
     {
         $queue = new InMemoryQueue();
-        $serializer = new NativeMessageSerializer();
-        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+        $serialiser = new NativeMessageSerialiser();
+        $queue->enqueue($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
 
         $handled = [];
         $handlers = new MessageHandlerRegistry();
@@ -137,7 +137,7 @@ final class WorkerTest extends TestCase
 
         self::assertSame(
             WorkerOutcome::Handled,
-            self::worker($queue, $handlers, serializer: $serializer)->runOnce()->outcome,
+            self::worker($queue, $handlers, serialiser: $serialiser)->runOnce()->outcome,
         );
         self::assertEquals([new SendWelcomeEmail('ada@example.com')], $handled);
     }
@@ -195,22 +195,22 @@ final class WorkerTest extends TestCase
     }
 
     #[Test]
-    public function it_fails_a_message_it_cannot_deserialize_when_the_retry_policy_declines(): void
+    public function it_fails_a_message_it_cannot_deserialise_when_the_retry_policy_declines(): void
     {
         $queue = new InMemoryQueue();
-        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'not a serialized value'));
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'not a serialised value'));
 
         $result = self::worker(
             $queue,
             new MessageHandlerRegistry(),
             new NeverRetryPolicy(),
-            serializer: new NativeMessageSerializer(),
+            serialiser: new NativeMessageSerialiser(),
         )
             ->runOnce();
 
         self::assertNull($queue->reserve());
         self::assertCount(1, $queue->failed());
-        self::assertSame(MessageSerializationException::class, $queue->failed()[0]->failure?->type);
+        self::assertSame(MessageSerialisationException::class, $queue->failed()[0]->failure?->type);
     }
 
     #[Test]
@@ -307,7 +307,7 @@ final class WorkerTest extends TestCase
     {
         $clock = new TestClock();
         $queue = new InMemoryQueue($clock->now(...));
-        $serializer = new NativeMessageSerializer();
+        $serialiser = new NativeMessageSerialiser();
 
         $handled = [];
         $handlers = new MessageHandlerRegistry();
@@ -315,9 +315,9 @@ final class WorkerTest extends TestCase
             $handled[] = $message;
         });
 
-        $worker = self::worker($queue, $handlers, serializer: $serializer);
+        $worker = self::worker($queue, $handlers, serialiser: $serialiser);
 
-        new QueuedMessagePublisher($queue, $serializer)->publishAfter(
+        new QueuedMessagePublisher($queue, $serialiser)->publishAfter(
             new SendWelcomeEmail('ada@example.com'),
             Duration::hours(1),
         );
@@ -331,10 +331,10 @@ final class WorkerTest extends TestCase
     }
 
     #[Test]
-    public function it_settles_a_payload_it_cannot_deserialize_with_the_default_execution_policy(): void
+    public function it_settles_a_payload_it_cannot_deserialise_with_the_default_execution_policy(): void
     {
         $queue = new InMemoryQueue();
-        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'not a serialized value'));
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'not a serialised value'));
 
         $defaultRetry = new RecordingRetryPolicy(retry: false);
         $overrideRetry = new RecordingRetryPolicy(retry: true);
@@ -343,7 +343,7 @@ final class WorkerTest extends TestCase
             new MessageExecutionPolicy($overrideRetry, new NoBackoffPolicy()),
         );
 
-        $result = new Worker($queue, new NativeMessageSerializer(), new MessageHandlerRegistry(), $policies)->runOnce();
+        $result = new Worker($queue, new NativeMessageSerialiser(), new MessageHandlerRegistry(), $policies)->runOnce();
 
         self::assertSame(WorkerOutcome::Failed, $result->outcome);
         self::assertSame([], $policies->asked);
@@ -353,18 +353,18 @@ final class WorkerTest extends TestCase
     }
 
     #[Test]
-    public function it_resolves_the_execution_policy_for_the_deserialized_message(): void
+    public function it_resolves_the_execution_policy_for_the_deserialised_message(): void
     {
         $queue = new InMemoryQueue();
-        $serializer = new NativeMessageSerializer();
-        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+        $serialiser = new NativeMessageSerialiser();
+        $queue->enqueue($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
 
         $handlers = new MessageHandlerRegistry();
         $handlers->register(SendWelcomeEmail::class, static function (object $message): void {});
         $policy = new MessageExecutionPolicy(new UnlimitedRetryPolicy(), new NoBackoffPolicy());
         $policies = new RecordingExecutionPolicyProvider($policy, $policy);
 
-        new Worker($queue, $serializer, $handlers, $policies)->runOnce();
+        new Worker($queue, $serialiser, $handlers, $policies)->runOnce();
 
         self::assertEquals([new SendWelcomeEmail('ada@example.com')], $policies->asked);
     }
@@ -373,8 +373,8 @@ final class WorkerTest extends TestCase
     public function it_settles_a_message_without_a_handler_with_its_own_execution_policy(): void
     {
         $queue = new InMemoryQueue();
-        $serializer = new NativeMessageSerializer();
-        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+        $serialiser = new NativeMessageSerialiser();
+        $queue->enqueue($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
 
         $defaultRetry = new RecordingRetryPolicy(retry: true);
         $welcomeRetry = new RecordingRetryPolicy(retry: false);
@@ -383,7 +383,7 @@ final class WorkerTest extends TestCase
         );
         $policies->register(SendWelcomeEmail::class, new MessageExecutionPolicy($welcomeRetry, new NoBackoffPolicy()));
 
-        $result = new Worker($queue, $serializer, new MessageHandlerRegistry(), $policies)->runOnce();
+        $result = new Worker($queue, $serialiser, new MessageHandlerRegistry(), $policies)->runOnce();
 
         self::assertInstanceOf(MessageHandlerNotFoundException::class, $result->failure);
         self::assertCount(1, $welcomeRetry->asked);
@@ -395,8 +395,8 @@ final class WorkerTest extends TestCase
     public function it_asks_the_retry_policy_of_the_failed_message_type(): void
     {
         $queue = new InMemoryQueue();
-        $serializer = new NativeMessageSerializer();
-        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+        $serialiser = new NativeMessageSerialiser();
+        $queue->enqueue($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
         $failure = new RuntimeException('The mail server is unavailable.');
 
         $defaultRetry = new RecordingRetryPolicy(retry: true);
@@ -406,7 +406,7 @@ final class WorkerTest extends TestCase
         );
         $policies->register(SendWelcomeEmail::class, new MessageExecutionPolicy($welcomeRetry, new NoBackoffPolicy()));
 
-        new Worker($queue, $serializer, self::failingHandlers($failure), $policies)->runOnce();
+        new Worker($queue, $serialiser, self::failingHandlers($failure), $policies)->runOnce();
 
         self::assertCount(1, $welcomeRetry->asked);
         self::assertSame($failure, $welcomeRetry->asked[0]['failure']);
@@ -419,8 +419,8 @@ final class WorkerTest extends TestCase
     {
         $clock = new TestClock();
         $queue = new InMemoryQueue($clock->now(...));
-        $serializer = new NativeMessageSerializer();
-        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+        $serialiser = new NativeMessageSerialiser();
+        $queue->enqueue($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
 
         $defaultBackoff = new RecordingBackoffPolicy(Duration::seconds(1));
         $welcomeBackoff = new RecordingBackoffPolicy(Duration::minutes(5));
@@ -434,7 +434,7 @@ final class WorkerTest extends TestCase
 
         $worker = new Worker(
             $queue,
-            $serializer,
+            $serialiser,
             self::failingHandlers(new RuntimeException('The mail server is unavailable.')),
             $policies,
         );
@@ -454,9 +454,9 @@ final class WorkerTest extends TestCase
     public function it_attempts_each_message_type_as_often_as_its_own_policy_allows(): void
     {
         $queue = new InMemoryQueue();
-        $serializer = new NativeMessageSerializer();
-        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
-        $queue->enqueue($serializer->serialize(new GenerateInvoice('INV-1')));
+        $serialiser = new NativeMessageSerialiser();
+        $queue->enqueue($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
+        $queue->enqueue($serialiser->serialise(new GenerateInvoice('INV-1')));
 
         $attempts = [SendWelcomeEmail::class => [], GenerateInvoice::class => []];
         $handler = static function (object $message) use (&$attempts): void {
@@ -476,7 +476,7 @@ final class WorkerTest extends TestCase
             new MessageExecutionPolicy(new AttemptsRetryPolicy(5), new NoBackoffPolicy()),
         );
 
-        $worker = new Worker($queue, $serializer, $handlers, $policies);
+        $worker = new Worker($queue, $serialiser, $handlers, $policies);
 
         do {
             $outcome = $worker->runOnce()->outcome;
@@ -498,8 +498,8 @@ final class WorkerTest extends TestCase
     public function it_fails_a_message_type_that_is_never_retried_straight_away(): void
     {
         $queue = new InMemoryQueue();
-        $serializer = new NativeMessageSerializer();
-        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+        $serialiser = new NativeMessageSerialiser();
+        $queue->enqueue($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
 
         $policies = new MessageExecutionPolicyRegistry(
             new MessageExecutionPolicy(new UnlimitedRetryPolicy(), new NoBackoffPolicy()),
@@ -511,7 +511,7 @@ final class WorkerTest extends TestCase
 
         $worker = new Worker(
             $queue,
-            $serializer,
+            $serialiser,
             self::failingHandlers(new RuntimeException('The payment was declined.')),
             $policies,
         );
@@ -526,8 +526,8 @@ final class WorkerTest extends TestCase
     public function it_does_not_consult_any_retry_or_backoff_policy_when_the_handler_succeeds(): void
     {
         $queue = new InMemoryQueue();
-        $serializer = new NativeMessageSerializer();
-        $queue->enqueue($serializer->serialize(new SendWelcomeEmail('ada@example.com')));
+        $serialiser = new NativeMessageSerialiser();
+        $queue->enqueue($serialiser->serialise(new SendWelcomeEmail('ada@example.com')));
 
         $defaultRetry = new RecordingRetryPolicy(retry: true);
         $defaultBackoff = new RecordingBackoffPolicy(Duration::seconds(1));
@@ -541,7 +541,7 @@ final class WorkerTest extends TestCase
 
         self::assertSame(
             WorkerOutcome::Handled,
-            new Worker($queue, $serializer, $handlers, $policies)->runOnce()->outcome,
+            new Worker($queue, $serialiser, $handlers, $policies)->runOnce()->outcome,
         );
         self::assertSame([], $defaultRetry->asked);
         self::assertSame([], $defaultBackoff->asked);
@@ -585,13 +585,13 @@ final class WorkerTest extends TestCase
     }
 
     #[Test]
-    public function it_describes_a_payload_it_cannot_deserialize_by_its_queued_message(): void
+    public function it_describes_a_payload_it_cannot_deserialise_by_its_queued_message(): void
     {
         $queue = new InMemoryQueue();
-        $message = new QueuedMessage(SendWelcomeEmail::class, 'not a serialized value');
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'not a serialised value');
         $queue->enqueue($message);
 
-        $result = self::worker($queue, new MessageHandlerRegistry(), serializer: new NativeMessageSerializer())
+        $result = self::worker($queue, new MessageHandlerRegistry(), serialiser: new NativeMessageSerialiser())
             ->runOnce();
 
         self::assertSame(WorkerOutcome::Failed, $result->outcome);
@@ -663,11 +663,11 @@ final class WorkerTest extends TestCase
         MessageHandlerRegistry $handlers,
         RetryPolicy $retryPolicy = new UnlimitedRetryPolicy(),
         BackoffPolicy $backoffPolicy = new NoBackoffPolicy(),
-        MessageSerializer $serializer = new SendWelcomeEmailSerializer(),
+        MessageSerialiser $serialiser = new SendWelcomeEmailSerialiser(),
     ): Worker {
         return new Worker(
             $queue,
-            $serializer,
+            $serialiser,
             $handlers,
             new MessageExecutionPolicyRegistry(new MessageExecutionPolicy($retryPolicy, $backoffPolicy)),
         );

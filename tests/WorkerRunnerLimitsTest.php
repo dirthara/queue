@@ -26,7 +26,7 @@ use Dirthara\Queue\MessageExecutionPolicyRegistry;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
 use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
 use Dirthara\Queue\Tests\Fixtures\RecordingWorkerObserver;
-use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerializer;
+use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerialiser;
 
 use function count;
 use function hrtime;
@@ -554,7 +554,7 @@ final class WorkerRunnerLimitsTest extends TestCase
     ): Worker {
         return new Worker(
             $queue,
-            new SendWelcomeEmailSerializer(),
+            new SendWelcomeEmailSerialiser(),
             $handlers,
             new MessageExecutionPolicyRegistry(new MessageExecutionPolicy($retryPolicy, new NoBackoffPolicy())),
         );
