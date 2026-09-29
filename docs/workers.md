@@ -21,6 +21,10 @@ $runner = new WorkerRunner(
 $runner->run();
 ```
 
+The idle delay has to be at least 1 millisecond. A delay of zero would make an idle runner poll its queue without
+pausing, keeping a CPU core busy, so the runner rejects it with an `InvalidWorkerRunnerException`. A zero `Duration`
+stays valid elsewhere, such as publishing without a delay or retrying without a backoff.
+
 ## Worker results
 
 Every call to `runOnce()` returns a `WorkerResult` with one of four outcomes:

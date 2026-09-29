@@ -10,6 +10,7 @@ use Dirthara\Queue\ValueObject\Duration;
 use Dirthara\Queue\Contract\WorkerObserver;
 use Dirthara\Queue\ValueObject\WorkerLimits;
 use Dirthara\Queue\Observer\NullWorkerObserver;
+use Dirthara\Queue\Exception\InvalidWorkerRunnerException;
 use Dirthara\Queue\Exception\WorkerAlreadyRunningException;
 
 use function min;
@@ -35,6 +36,8 @@ final class WorkerRunner
     /**
      * @param null|Closure(Duration): void $sleep
      * @param null|Closure(): int $nanoseconds
+     *
+     * @throws InvalidWorkerRunnerException
      */
     public function __construct(
         private readonly Worker $worker,
@@ -44,6 +47,10 @@ final class WorkerRunner
         ?Closure $sleep = null,
         ?Closure $nanoseconds = null,
     ) {
+        if ($idleDelay->milliseconds === 0) {
+            throw InvalidWorkerRunnerException::noIdleDelay();
+        }
+
         $this->sleep = $sleep ?? static function (Duration $duration): void {
             // @mago-expect analysis:possibly-invalid-argument A duration is never negative, so neither are its whole seconds
             sleep(intdiv($duration->milliseconds, num2: 1000));

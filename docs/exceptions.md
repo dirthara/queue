@@ -33,6 +33,7 @@ These are thrown while an application is being set up, and point to a mistake in
 | `InvalidDurationException` | `InvalidArgumentException` | A duration is negative, or too long to fit in a PHP integer of milliseconds. |
 | `InvalidRetryPolicyException` | `InvalidArgumentException` | `AttemptsRetryPolicy` is given fewer than one attempt. |
 | `InvalidWorkerLimitsException` | `InvalidArgumentException` | `WorkerLimits` is given fewer than one message, or a runtime of zero. |
+| `InvalidWorkerRunnerException` | `InvalidArgumentException` | A `WorkerRunner` is given an idle delay of zero. |
 
 ## Running
 

@@ -26,6 +26,7 @@ use Dirthara\Queue\Driver\Memory\InMemoryQueue;
 use Dirthara\Queue\MessageExecutionPolicyRegistry;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmail;
 use Dirthara\Queue\ValueObject\MessageExecutionPolicy;
+use Dirthara\Queue\Exception\InvalidWorkerRunnerException;
 use Dirthara\Queue\Tests\Fixtures\RecordingWorkerObserver;
 use Dirthara\Queue\Exception\WorkerAlreadyRunningException;
 use Dirthara\Queue\Tests\Fixtures\SendWelcomeEmailSerialiser;
@@ -462,6 +463,39 @@ final class WorkerRunnerTest extends TestCase
         $runner->run();
 
         self::assertEquals([new SendWelcomeEmail('ada@example.com')], $handled);
+    }
+
+    #[Test]
+    public function it_accepts_an_idle_delay_of_one_millisecond(): void
+    {
+        $slept = [];
+        $runner = null;
+        $runner = new WorkerRunner(
+            self::worker(new InMemoryQueue(), new MessageHandlerRegistry()),
+            Duration::milliseconds(1),
+            sleep: static function (Duration $duration) use (&$slept, &$runner): void {
+                $slept[] = $duration->milliseconds;
+                $runner?->stop();
+            },
+        );
+
+        $runner->run();
+
+        self::assertSame([1], $slept);
+    }
+
+    #[Test]
+    public function it_refuses_an_idle_delay_of_zero(): void
+    {
+        try {
+            new WorkerRunner(
+                self::worker(new InMemoryQueue(), new MessageHandlerRegistry()),
+                Duration::milliseconds(0),
+            );
+            self::fail('An idle delay of zero was accepted.');
+        } catch (InvalidWorkerRunnerException $exception) {
+            self::assertSame(['idleDelay' => 0], $exception->context);
+        }
     }
 
     private static function worker(
