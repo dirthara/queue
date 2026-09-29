@@ -100,9 +100,9 @@ final class InMemoryQueue implements Queue, FailedMessageRepository
     {
         $failed = $this->failed[$id] ?? throw FailedMessageNotFoundException::forId($id);
 
-        unset($this->failed[$id]);
-
         $this->pending[] = new QueueEntry($failed->message);
+
+        unset($this->failed[$id]);
     }
 
     /**
