@@ -89,8 +89,8 @@ $worker = new Worker(
 $result = $worker->runOnce();
 ```
 
-`runOnce()` processes the next available message and returns a `WorkerResult` saying whether it was handled, failed,
-or whether the queue had nothing available. A `WorkerRunner` keeps calling it:
+`runOnce()` processes the next available message and returns a `WorkerResult` saying whether it was handled, released
+for another attempt, failed for good, or whether the queue had nothing available. A `WorkerRunner` keeps calling it:
 
 ```php
 $runner = new WorkerRunner(

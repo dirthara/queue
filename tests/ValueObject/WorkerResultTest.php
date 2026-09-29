@@ -40,6 +40,20 @@ final class WorkerResultTest extends TestCase
     }
 
     #[Test]
+    public function it_describes_a_released_message_its_attempt_and_its_failure(): void
+    {
+        $message = new QueuedMessage('type', 'payload');
+        $failure = new RuntimeException('The handler failed.');
+
+        $result = WorkerResult::released($message, 1, $failure);
+
+        self::assertSame(WorkerOutcome::Released, $result->outcome);
+        self::assertSame($message, $result->message);
+        self::assertSame(1, $result->attempt);
+        self::assertSame($failure, $result->failure);
+    }
+
+    #[Test]
     public function it_describes_a_failed_message_its_attempt_and_its_failure(): void
     {
         $message = new QueuedMessage('type', 'payload');
@@ -59,6 +73,7 @@ final class WorkerResultTest extends TestCase
         $message = new QueuedMessage('type', 'payload');
 
         self::assertSame(1, WorkerResult::handled($message, 1)->attempt);
+        self::assertSame(1, WorkerResult::released($message, 1, new RuntimeException('failure'))->attempt);
         self::assertSame(1, WorkerResult::failed($message, 1, new RuntimeException('failure'))->attempt);
     }
 
@@ -77,6 +92,18 @@ final class WorkerResultTest extends TestCase
     {
         try {
             WorkerResult::handled(new QueuedMessage('type', 'payload'), $attempt);
+            self::fail('An attempt before the first was accepted.');
+        } catch (InvalidWorkerResultException $exception) {
+            self::assertSame(['attempt' => $attempt], $exception->context);
+        }
+    }
+
+    #[Test]
+    #[DataProvider('attemptsBeforeTheFirst')]
+    public function it_refuses_a_released_result_for_an_attempt_before_the_first(int $attempt): void
+    {
+        try {
+            WorkerResult::released(new QueuedMessage('type', 'payload'), $attempt, new RuntimeException('failure'));
             self::fail('An attempt before the first was accepted.');
         } catch (InvalidWorkerResultException $exception) {
             self::assertSame(['attempt' => $attempt], $exception->context);

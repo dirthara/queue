@@ -135,6 +135,10 @@ final class WorkerRunnerLimitsTest extends TestCase
             [1, 2, 3],
             array_map(static fn(WorkerResult $result): ?int => $result->attempt, $observer->observed),
         );
+        self::assertSame(
+            [WorkerOutcome::Released, WorkerOutcome::Released, WorkerOutcome::Released],
+            self::outcomes($observer),
+        );
         self::assertSame(4, $queue->reserve()?->attempt);
     }
 
@@ -305,7 +309,7 @@ final class WorkerRunnerLimitsTest extends TestCase
 
         $runner->run();
 
-        self::assertSame([WorkerOutcome::Failed], self::outcomes($observer));
+        self::assertSame([WorkerOutcome::Released], self::outcomes($observer));
         self::assertSame('next@example.com', $queue->reserve()?->message->payload);
 
         $retried = $queue->reserve();

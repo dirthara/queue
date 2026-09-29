@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Dirthara\Queue;
 
-enum WorkerOutcome
+enum WorkerOutcome: string
 {
-    case Idle;
-    case Handled;
-    case Failed;
+    case Idle = 'idle';
+    case Handled = 'handled';
+    case Released = 'released';
+    case Failed = 'failed';
 }

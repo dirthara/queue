@@ -338,6 +338,39 @@ final class WorkerRunnerTest extends TestCase
     }
 
     #[Test]
+    public function it_observes_a_released_attempt_distinctly_from_the_final_failure(): void
+    {
+        $queue = new InMemoryQueue();
+        $queue->enqueue(new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com'));
+        $failure = new RuntimeException('The mail server is unavailable.');
+
+        $handlers = new MessageHandlerRegistry();
+        $handlers->register(SendWelcomeEmail::class, static function (object $message) use ($failure): void {
+            throw $failure;
+        });
+
+        $runner = null;
+        $observer = new RecordingWorkerObserver();
+        $runner = new WorkerRunner(
+            self::worker($queue, $handlers, new AttemptsRetryPolicy(2)),
+            Duration::seconds(1),
+            $observer,
+            sleep: static function (Duration $duration) use (&$runner): void {
+                $runner?->stop();
+            },
+        );
+
+        $runner->run();
+
+        self::assertSame(
+            [WorkerOutcome::Released, WorkerOutcome::Failed, WorkerOutcome::Idle],
+            array_map(static fn(WorkerResult $result): WorkerOutcome => $result->outcome, $observer->observed),
+        );
+        self::assertSame($failure, $observer->observed[0]->failure);
+        self::assertSame($failure, $observer->observed[1]->failure);
+    }
+
+    #[Test]
     public function it_observes_every_retry_of_a_failing_message(): void
     {
         $queue = new InMemoryQueue();

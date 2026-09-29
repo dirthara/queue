@@ -23,19 +23,23 @@ $runner->run();
 
 ## Worker results
 
-Every call to `runOnce()` returns a `WorkerResult` with one of three outcomes:
+Every call to `runOnce()` returns a `WorkerResult` with one of four outcomes:
 
-| Outcome | `message` | `attempt` | `failure` |
-| --- | --- | --- | --- |
-| `WorkerOutcome::Idle` | `null` | `null` | `null` |
-| `WorkerOutcome::Handled` | The `QueuedMessage` | The attempt, from 1 | `null` |
-| `WorkerOutcome::Failed` | The `QueuedMessage` | The attempt, from 1 | The `Throwable` |
+| Outcome | Means | `message` | `attempt` | `failure` |
+| --- | --- | --- | --- | --- |
+| `WorkerOutcome::Idle` | The queue had no delivery available. | `null` | `null` | `null` |
+| `WorkerOutcome::Handled` | The handler succeeded and the delivery was acknowledged. | The `QueuedMessage` | The attempt, from 1 | `null` |
+| `WorkerOutcome::Released` | Processing failed, the [execution policy](execution-policies.md) allowed another attempt, and the delivery was released for it. | The `QueuedMessage` | The attempt, from 1 | The `Throwable` |
+| `WorkerOutcome::Failed` | Processing failed, the execution policy allowed no further attempt, and the delivery was failed for good. | The `QueuedMessage` | The attempt, from 1 | The `Throwable` |
 
-A failed result means the failure was settled according to the message's
-[execution policy](execution-policies.md): the delivery was released for a retry or failed for good. A result carries
-the queued message as it was stored, never the deserialised message object. When settling a delivery itself fails,
-because the queue cannot acknowledge, release, or fail it, the exception escapes the worker instead of becoming a
-result.
+Processing fails when the payload cannot be deserialised, when no handler is registered for the message type, or when
+the handler throws. A `Released` and a `Failed` result both carry that original failure; they differ in what happened
+to the delivery afterwards. A result describes a settlement that succeeded: when the queue cannot acknowledge, release,
+or fail a delivery, the exception escapes the worker instead of becoming a result.
+
+A result carries the queued message as it was stored, never the deserialised message object. `WorkerOutcome` is a
+string-backed enum, so `$result->outcome->value` is `idle`, `handled`, `released`, or `failed`, ready for a log line or
+a metric label.
 
 ## Observing results
 
@@ -54,9 +58,13 @@ final readonly class FailureLogger implements WorkerObserver
 
     public function observe(WorkerResult $result): void
     {
-        if ($result->outcome === WorkerOutcome::Failed) {
-            $this->logger->error($result->failure?->getMessage() ?? 'unknown', ['type' => $result->message?->type]);
-        }
+        $context = ['type' => $result->message?->type, 'attempt' => $result->attempt];
+
+        match ($result->outcome) {
+            WorkerOutcome::Released => $this->logger->warning('Retrying: ' . $result->failure?->getMessage(), $context),
+            WorkerOutcome::Failed => $this->logger->error('Failed: ' . $result->failure?->getMessage(), $context),
+            WorkerOutcome::Idle, WorkerOutcome::Handled => null,
+        };
     }
 }
 
@@ -100,8 +108,8 @@ Whatever supervises the process, such as a process manager, a container orchestr
 decides whether to start the worker again. Spawning, restarting, daemonising, signal handling, and worker pools are
 outside this package.
 
-- **`maxMessages`** counts handled and failed deliveries, including every retried attempt of the same message. Idle
-  polls do not count. It has to be at least 1.
+- **`maxMessages`** counts handled, released, and failed deliveries, so every retried attempt of the same message
+  counts. Idle polls do not count. It has to be at least 1.
 - **`maxRuntime`** is the time elapsed since `run()` started, measured with a monotonic clock. It has to be longer than
   0 milliseconds. A message that is already being handled when the runtime passes is never interrupted: it finishes, is
   settled, and is observed, and the runner then stops without reserving another message. While idle, the runner sleeps

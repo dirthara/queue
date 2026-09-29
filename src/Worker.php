@@ -42,9 +42,7 @@ final readonly class Worker
 
             $handler($message);
         } catch (Throwable $failure) {
-            $this->settleFailure($delivery, $failure, $policy);
-
-            return WorkerResult::failed($delivery->message, $delivery->attempt, $failure);
+            return $this->settleFailure($delivery, $failure, $policy);
         }
 
         $delivery->acknowledge();
@@ -52,14 +50,22 @@ final readonly class Worker
         return WorkerResult::handled($delivery->message, $delivery->attempt);
     }
 
-    private function settleFailure(Delivery $delivery, Throwable $failure, MessageExecutionPolicy $policy): void
+    /**
+     * @throws Throwable
+     */
+    private function settleFailure(Delivery $delivery, Throwable $failure, MessageExecutionPolicy $policy): WorkerResult
     {
+        $message = $delivery->message;
+        $attempt = $delivery->attempt;
+
         if (!$policy->retry->shouldRetry($delivery, $failure)) {
             $delivery->fail($failure);
 
-            return;
+            return WorkerResult::failed($message, $attempt, $failure);
         }
 
         $delivery->release($policy->backoff->delay($delivery, $failure));
+
+        return WorkerResult::released($message, $attempt, $failure);
     }
 }

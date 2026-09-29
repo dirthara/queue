@@ -33,6 +33,14 @@ final readonly class WorkerResult
     /**
      * @throws InvalidWorkerResultException
      */
+    public static function released(QueuedMessage $message, int $attempt, Throwable $failure): self
+    {
+        return new self(WorkerOutcome::Released, $message, self::attempt($attempt), $failure);
+    }
+
+    /**
+     * @throws InvalidWorkerResultException
+     */
     public static function failed(QueuedMessage $message, int $attempt, Throwable $failure): self
     {
         return new self(WorkerOutcome::Failed, $message, self::attempt($attempt), $failure);

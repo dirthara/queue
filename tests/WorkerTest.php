@@ -82,13 +82,13 @@ final class WorkerTest extends TestCase
 
         $result = self::worker($queue, self::failingHandlers($failure))->runOnce();
 
-        self::assertSame(WorkerOutcome::Failed, $result->outcome);
+        self::assertSame(WorkerOutcome::Released, $result->outcome);
         self::assertSame($failure, $result->failure);
         self::assertSame($message, $queue->reserve()?->message);
     }
 
     #[Test]
-    public function it_reports_a_message_without_a_handler_as_a_failure(): void
+    public function it_releases_a_message_without_a_handler_when_the_retry_policy_allows(): void
     {
         $queue = new InMemoryQueue();
         $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
@@ -96,13 +96,13 @@ final class WorkerTest extends TestCase
 
         $result = self::worker($queue, new MessageHandlerRegistry())->runOnce();
 
-        self::assertSame(WorkerOutcome::Failed, $result->outcome);
+        self::assertSame(WorkerOutcome::Released, $result->outcome);
         self::assertInstanceOf(MessageHandlerNotFoundException::class, $result->failure);
         self::assertSame($message, $queue->reserve()?->message);
     }
 
     #[Test]
-    public function it_reports_a_message_it_cannot_deserialise_as_a_failure_without_handling_it(): void
+    public function it_releases_a_message_it_cannot_deserialise_without_handling_it_when_the_retry_policy_allows(): void
     {
         $queue = new InMemoryQueue();
         $message = new QueuedMessage(SendWelcomeEmail::class, 'not a serialised value');
@@ -116,7 +116,7 @@ final class WorkerTest extends TestCase
 
         $result = self::worker($queue, $handlers, serialiser: new NativeMessageSerialiser())->runOnce();
 
-        self::assertSame(WorkerOutcome::Failed, $result->outcome);
+        self::assertSame(WorkerOutcome::Released, $result->outcome);
         self::assertInstanceOf(MessageSerialisationException::class, $result->failure);
         self::assertFalse($handled);
         self::assertSame($message, $queue->reserve()?->message);
@@ -208,6 +208,8 @@ final class WorkerTest extends TestCase
         )
             ->runOnce();
 
+        self::assertSame(WorkerOutcome::Failed, $result->outcome);
+        self::assertInstanceOf(MessageSerialisationException::class, $result->failure);
         self::assertNull($queue->reserve());
         self::assertCount(1, $queue->failed());
         self::assertSame(MessageSerialisationException::class, $queue->failed()[0]->failure?->type);
@@ -229,8 +231,8 @@ final class WorkerTest extends TestCase
 
         $worker = self::worker($queue, $handlers, new AttemptsRetryPolicy(3));
 
-        self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
-        self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
+        self::assertSame(WorkerOutcome::Released, $worker->runOnce()->outcome);
+        self::assertSame(WorkerOutcome::Released, $worker->runOnce()->outcome);
         self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
         self::assertSame(WorkerOutcome::Idle, $worker->runOnce()->outcome);
         self::assertCount(3, $attempts);
@@ -255,7 +257,7 @@ final class WorkerTest extends TestCase
 
         $worker = self::worker($queue, $handlers, new AttemptsRetryPolicy(3));
 
-        self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
+        self::assertSame(WorkerOutcome::Released, $worker->runOnce()->outcome);
         self::assertSame(WorkerOutcome::Handled, $worker->runOnce()->outcome);
         self::assertSame(WorkerOutcome::Idle, $worker->runOnce()->outcome);
         self::assertCount(2, $attempts);
@@ -293,13 +295,13 @@ final class WorkerTest extends TestCase
             new FixedBackoffPolicy(Duration::seconds(30)),
         );
 
-        self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
+        self::assertSame(WorkerOutcome::Released, $worker->runOnce()->outcome);
 
         $clock->advance('+29 seconds');
         self::assertSame(WorkerOutcome::Idle, $worker->runOnce()->outcome);
 
         $clock->advance('+1 second');
-        self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
+        self::assertSame(WorkerOutcome::Released, $worker->runOnce()->outcome);
     }
 
     #[Test]
@@ -385,6 +387,7 @@ final class WorkerTest extends TestCase
 
         $result = new Worker($queue, $serialiser, new MessageHandlerRegistry(), $policies)->runOnce();
 
+        self::assertSame(WorkerOutcome::Failed, $result->outcome);
         self::assertInstanceOf(MessageHandlerNotFoundException::class, $result->failure);
         self::assertCount(1, $welcomeRetry->asked);
         self::assertSame([], $defaultRetry->asked);
@@ -439,7 +442,7 @@ final class WorkerTest extends TestCase
             $policies,
         );
 
-        self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
+        self::assertSame(WorkerOutcome::Released, $worker->runOnce()->outcome);
         self::assertCount(1, $welcomeBackoff->asked);
         self::assertSame([], $defaultBackoff->asked);
 
@@ -447,7 +450,7 @@ final class WorkerTest extends TestCase
         self::assertSame(WorkerOutcome::Idle, $worker->runOnce()->outcome);
 
         $clock->advance('+1 second');
-        self::assertSame(WorkerOutcome::Failed, $worker->runOnce()->outcome);
+        self::assertSame(WorkerOutcome::Released, $worker->runOnce()->outcome);
     }
 
     #[Test]
@@ -569,7 +572,7 @@ final class WorkerTest extends TestCase
     }
 
     #[Test]
-    public function it_describes_the_failed_delivery_by_its_queued_message_attempt_and_original_failure(): void
+    public function it_describes_a_released_delivery_by_its_queued_message_attempt_and_original_failure(): void
     {
         $queue = new InMemoryQueue();
         $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
@@ -580,8 +583,38 @@ final class WorkerTest extends TestCase
         $first = $worker->runOnce();
         $second = $worker->runOnce();
 
-        self::assertSame([$message, 1, $failure], [$first->message, $first->attempt, $first->failure]);
-        self::assertSame([$message, 2, $failure], [$second->message, $second->attempt, $second->failure]);
+        self::assertSame([WorkerOutcome::Released, $message, 1, $failure], [
+            $first->outcome,
+            $first->message,
+            $first->attempt,
+            $first->failure,
+        ]);
+        self::assertSame([WorkerOutcome::Released, $message, 2, $failure], [
+            $second->outcome,
+            $second->message,
+            $second->attempt,
+            $second->failure,
+        ]);
+    }
+
+    #[Test]
+    public function it_describes_a_failed_delivery_by_its_queued_message_attempt_and_original_failure(): void
+    {
+        $queue = new InMemoryQueue();
+        $message = new QueuedMessage(SendWelcomeEmail::class, 'ada@example.com');
+        $queue->enqueue($message);
+        $failure = new RuntimeException('The mail server is unavailable.');
+        $worker = self::worker($queue, self::failingHandlers($failure), new AttemptsRetryPolicy(2));
+
+        $worker->runOnce();
+        $result = $worker->runOnce();
+
+        self::assertSame([WorkerOutcome::Failed, $message, 2, $failure], [
+            $result->outcome,
+            $result->message,
+            $result->attempt,
+            $result->failure,
+        ]);
     }
 
     #[Test]
@@ -594,7 +627,7 @@ final class WorkerTest extends TestCase
         $result = self::worker($queue, new MessageHandlerRegistry(), serialiser: new NativeMessageSerialiser())
             ->runOnce();
 
-        self::assertSame(WorkerOutcome::Failed, $result->outcome);
+        self::assertSame(WorkerOutcome::Released, $result->outcome);
         self::assertSame($message, $result->message);
         self::assertSame(1, $result->attempt);
     }

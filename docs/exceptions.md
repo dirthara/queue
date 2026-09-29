@@ -44,7 +44,7 @@ These are thrown while an application is being set up, and point to a mistake in
 | `FailedMessageNotFoundException` | `RuntimeException` | A failed message is retried or forgotten by an id that no failed message has. |
 | `DeliveryAlreadySettledException` | `RuntimeException` | A delivery from the in-memory queue that was already acknowledged, released, or failed is settled again. |
 | `WorkerAlreadyRunningException` | `RuntimeException` | `run()` is called on a runner that is already running. |
-| `InvalidWorkerResultException` | `InvalidArgumentException` | A handled or failed `WorkerResult` is created for an attempt below 1, which points to a queue driver counting attempts wrongly. |
+| `InvalidWorkerResultException` | `InvalidArgumentException` | A handled, released, or failed `WorkerResult` is created for an attempt below 1, which points to a queue driver counting attempts wrongly. |
 
 A worker does not let a failure to deserialise or handle a message escape: it settles the delivery and reports the
 failure in its [result](workers.md#worker-results). What escapes a worker is a failure of the queue itself, such as a
