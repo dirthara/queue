@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Dirthara\Queue;
 
-use Dirthara\Queue\Contract\MessageHandlerProvider;
 use Dirthara\Queue\Exception\InvalidMessageTypeException;
 use Dirthara\Queue\Exception\MessageHandlerNotFoundException;
 use Dirthara\Queue\Exception\DuplicateMessageHandlerException;
+use Dirthara\Queue\Contract\MessageHandlerRegistry as MessageHandlerRegistryContract;
 
 use function array_key_exists;
 
-final class MessageHandlerRegistry implements MessageHandlerProvider
+final class MessageHandlerRegistry implements MessageHandlerRegistryContract
 {
     /**
      * @var array<class-string, callable(object): void>

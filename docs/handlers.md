@@ -44,5 +44,28 @@ An enum is registered by its class, and its handler receives the enum case.
 as a failed attempt and settles it with the message's execution policy, so the message is retried or failed rather than
 lost.
 
-The worker depends on the `MessageHandlerProvider` contract, which has only `handlerFor()`; `MessageHandlerRegistry` is
-the implementation the package provides.
+## Depending on the contracts
+
+Handlers have two contracts, so code depends on only the capability it uses:
+
+| Contract | Methods | Used by |
+| --- | --- | --- |
+| `Contract\MessageHandlerProvider` | `handlerFor()` | The worker, and anything else that only looks handlers up. |
+| `Contract\MessageHandlerRegistry` | `handlerFor()` and `register()` | Configuration code that registers handlers. |
+
+`Dirthara\Queue\MessageHandlerRegistry` implements both. It shares its short name with the registry contract, so code
+that uses both imports one under an alias:
+
+```php
+use Dirthara\Queue\Contract\MessageHandlerRegistry as MessageHandlerRegistryContract;
+use Dirthara\Queue\MessageHandlerRegistry;
+
+function registerMailHandlers(MessageHandlerRegistryContract $handlers, Mailer $mailer): void
+{
+    $handlers->register(SendWelcomeEmail::class, static function (SendWelcomeEmail $message) use ($mailer): void {
+        $mailer->sendWelcomeEmail($message->email);
+    });
+}
+
+registerMailHandlers(new MessageHandlerRegistry(), $mailer);
+```

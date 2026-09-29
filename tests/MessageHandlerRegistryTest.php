@@ -9,7 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use Dirthara\Queue\MessageHandlerRegistry;
 use Dirthara\Queue\Tests\Fixtures\Maintenance;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Dirthara\Queue\Contract\MessageHandlerProvider;
 use Dirthara\Queue\Tests\Fixtures\Inheritance\TakePayment;
+use Dirthara\Queue\Contract\MessageHandlerRegistry as MessageHandlerRegistryContract;
 
 use function strtolower;
 use function strtoupper;
@@ -24,6 +26,25 @@ use Dirthara\Queue\Exception\DuplicateMessageHandlerException;
 
 final class MessageHandlerRegistryTest extends TestCase
 {
+    #[Test]
+    public function it_is_a_handler_provider_and_registry(): void
+    {
+        $registry = new MessageHandlerRegistry();
+
+        self::assertInstanceOf(MessageHandlerProvider::class, $registry);
+        self::assertInstanceOf(MessageHandlerRegistryContract::class, $registry);
+    }
+
+    #[Test]
+    public function it_registers_through_the_registry_contract(): void
+    {
+        $handler = static function (object $message): void {};
+
+        $provider = self::configure(new MessageHandlerRegistry(), $handler);
+
+        self::assertSame($handler, $provider->handlerFor(new SendWelcomeEmail('ada@example.com')));
+    }
+
     #[Test]
     public function it_provides_the_handler_registered_for_the_message_type(): void
     {
@@ -166,5 +187,14 @@ final class MessageHandlerRegistryTest extends TestCase
         } catch (MessageHandlerNotFoundException $exception) {
             self::assertSame(['message' => SendWelcomeEmail::class], $exception->context);
         }
+    }
+
+    private static function configure(
+        MessageHandlerRegistryContract $registry,
+        callable $handler,
+    ): MessageHandlerProvider {
+        $registry->register(SendWelcomeEmail::class, $handler);
+
+        return $registry;
     }
 }
