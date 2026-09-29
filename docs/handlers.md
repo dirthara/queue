@@ -24,6 +24,10 @@ A handler receives the deserialised message and returns nothing. It knows nothin
 delays: whether a failure is retried is decided by the message's [execution policy](execution-policies.md). A handler
 reports failure by throwing.
 
+A handler can receive the same message more than once, both through retries and because a durable queue delivers again
+after a worker stopped before acknowledging. A handler with an effect that must not be repeated, such as charging a
+card, has to account for that; see [delivery guarantees](drivers.md#delivery-guarantees).
+
 ## Exact message types
 
 A handler is registered for an exact class or enum, and is only used for messages of that exact class:

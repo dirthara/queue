@@ -45,6 +45,14 @@ A result carries the queued message as it was stored, never the deserialised mes
 string-backed enum, so `$result->outcome->value` is `idle`, `handled`, `released`, or `failed`, ready for a log line or
 a metric label.
 
+## Delivery guarantees
+
+A worker acknowledges a delivery only after its handler has returned. If the process stops in between, the handler's
+work has happened but the queue was never told, and a durable queue delivers the message again. Queues are therefore
+at-least-once: a handler whose work must not be repeated, such as charging a card, has to cope with receiving the same
+message twice. The `attempt` of a result counts queue deliveries, not how often the work took effect. See
+[delivery guarantees](drivers.md#delivery-guarantees).
+
 ## Observing results
 
 A `WorkerObserver` receives every result a runner produces, including idle ones, in the order they happen:

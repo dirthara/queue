@@ -28,6 +28,33 @@ counts as settled only once its settlement has succeeded: when `acknowledge()`, 
 exception escapes and the delivery is still unsettled, so it can be settled again. The in-memory queue throws a
 `DeliveryAlreadySettledException` when a delivery that was settled successfully is settled a second time.
 
+## Delivery guarantees
+
+The queue contracts do not promise that a message is processed exactly once. Assume a durable queue delivers each
+message at least once, unless its driver documents a stronger guarantee.
+
+Acknowledging a delivery is a separate step from the work its handler does, and a process can stop between the two:
+
+```text
+handler charges the card
+    ↓
+the payment provider accepts the charge
+    ↓
+the worker process crashes before acknowledge()
+    ↓
+a durable queue makes the message available again
+    ↓
+a handler charges the card a second time
+```
+
+Settling queue messages cannot make an external effect such as a payment, an email, or a call to another service happen
+exactly once. A handler whose work must not be repeated has to account for a duplicate delivery itself, for example by
+passing an idempotency key to the payment provider, or by recording which messages it has completed.
+
+`attempt` counts how often the queue has delivered a message. It is what [retry policies](execution-policies.md) and
+[lifecycle limits](workers.md#lifecycle-limits) count, not a record of how often the handler's work took effect: a
+handler can have completed its work on an attempt that the queue never saw acknowledged.
+
 ## The in-memory queue
 
 `InMemoryQueue` keeps its messages in the PHP process. It suits tests, and work that is published and processed within
@@ -35,7 +62,8 @@ the same process:
 
 - It delivers messages in the order they were enqueued or released, skipping any whose delay has not passed yet.
 - It keeps failed messages and implements `FailedMessageRepository`; see [failed messages](failed-messages.md).
-- Its messages are lost when the process ends, and other processes cannot see them.
+- Its messages are lost when the process ends, and other processes cannot see them. It therefore never delivers a
+  message again after a crash; within a running process, a message is delivered again only when it was released.
 
 It reads the current time whenever it needs it. For tests that control time, pass a closure that returns it:
 
